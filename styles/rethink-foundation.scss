@@ -1,0 +1,178 @@
+:root {
+  --rethink-container-max: 1280px;
+  --rethink-pad-x: 16px;
+
+  /* optional variants */
+  --rethink-container-max-lg: 1320px;
+  --rethink-container-max-xl: 1440px;
+}
+
+/* Utility block: reusable container */
+.rethink-container {
+  max-width: var(--rethink-container-max);
+  margin-inline: auto;
+  padding-inline: var(--rethink-pad-x);
+}
+
+/* Size modifiers */
+.rethink-container--lg {
+  max-width: var(--rethink-container-max-lg);
+}
+.rethink-container--xl {
+  max-width: var(--rethink-container-max-xl);
+}
+.rethink-container--flush {
+  padding-inline: 0;
+}
+
+/* Mixin version (use when you don't want an extra class) */
+@mixin rethink-container(
+  $max: var(--rethink-container-max),
+  $px: var(--rethink-pad-x)
+) {
+  max-width: $max;
+  margin-inline: auto;
+  padding-inline: $px;
+}
+
+/* ---- Buttons ------------------------------------------------------------ */
+.rethink-btn {
+  --btn-bg: #fff;
+  --btn-fg: #111;
+  --btn-radius: 12px;
+  --btn-py: 10px;
+  --btn-px: 16px;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+
+  padding: var(--btn-py) var(--btn-px);
+  border-radius: var(--btn-radius);
+  border: 1px solid transparent;
+
+  background: var(--btn-bg);
+  color: var(--btn-fg);
+  text-decoration: none;
+  font-size: 14px;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+
+  transition: transform 0.08s ease, box-shadow 0.2s ease, background 0.2s ease,
+    opacity 0.2s ease;
+
+  &:focus-visible {
+    outline: 2px solid #1f6feb;
+    outline-offset: 2px;
+  }
+  &:disabled,
+  &.is-disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+
+  /* sizes */
+  &--sm {
+    --btn-py: 8px;
+    --btn-px: 14px;
+    font-size: 13px;
+  }
+  &--md {
+    --btn-py: 10px;
+    --btn-px: 18px;
+    font-size: 14px;
+  }
+  &--lg {
+    --btn-py: 12px;
+    --btn-px: 22px;
+    font-size: 15px;
+  }
+
+  /* primary = black solid (like your screenshot) */
+  &--primary {
+    --btn-bg: #111;
+    --btn-fg: #fff;
+    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.15);
+    &:hover {
+      transform: translateY(-1px);
+    }
+    &:active {
+      transform: translateY(0);
+    }
+  }
+
+  /* optional variants */
+  &--outline {
+    --btn-bg: #fff;
+    --btn-fg: #111;
+    border-color: #ddd;
+    &:hover {
+      background: #f7f7f7;
+    }
+  }
+  &--link {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: #3467b3;
+    box-shadow: none;
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+}
+
+/* --- Modern input (shadcn-like) -------------------------------------- */
+input.rethink-input {
+  --bd: #e5e7eb; /* border */
+  --bd-hover: #d0d5dd; /* hover */
+  --bd-focus: #111111; /* focus border */
+  --ring: rgba(17, 17, 17, 0.08);
+
+  width: 100%;
+  height: var(--input-h);
+  box-sizing: border-box;
+  padding: 8px 12px;
+  border: 1px solid var(--bd);
+  border-radius: var(--radius);
+  background: #fff;
+  font-size: var(--fs-body);
+  line-height: var(--lh);
+  color: #111;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease,
+    background 0.15s ease;
+
+  &::placeholder {
+    color: #9ca3af;
+  } /* slate-400 */
+
+  &:hover {
+    border-color: var(--bd-hover);
+  }
+
+  &:focus-visible {
+    outline: none;
+    border-color: var(--bd-focus);
+    box-shadow: 0 0 0 3px var(--ring);
+    background: #fff;
+  }
+
+  &:disabled {
+    background: #f5f7fa;
+    color: #98a2b3;
+    cursor: not-allowed;
+  }
+}
+
+/* remove number steppers (keep keyboard arrows) */
+input[type="number"].rethink-input::-webkit-outer-spin-button,
+input[type="number"].rethink-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"].rethink-input {
+  -moz-appearance: textfield;
+}

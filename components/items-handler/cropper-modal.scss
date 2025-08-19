@@ -1,0 +1,117 @@
+/* Overlay */
+.rethink-cropper__overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100dvh; /* safer than 100vh on mobile */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+
+  /* Keep container transparent; draw the dim layer behind the panel */
+  background: transparent;
+  isolation: isolate;
+
+  &::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0; /* no inset */
+    background: rgba(0, 0, 0, 0.6);
+    pointer-events: none; /* overlay click still works */
+  }
+}
+
+/* Modal panel */
+.rethink-cropper__modal {
+  position: relative; /* floats above ::before */
+  z-index: 1;
+  width: 100%;
+  max-width: 1280px; /* optional: keep it from stretching too wide */
+  background: #fff;
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+/* Header */
+.rethink-cropper__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #e0f0e9;
+  padding: 12px 16px;
+  font-weight: 600;
+  font-size: 16px;
+  border-bottom: 1px solid #ccc;
+}
+
+/* Header buttons */
+.rethink-cropper__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-weight: 500;
+  color: #333;
+  padding: 4px 6px;
+
+  &--confirm {
+    color: #1b8830;
+  }
+  &--ghost {
+    color: #333;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+/* Header title */
+.rethink-cropper__title {
+  flex-grow: 1;
+  text-align: center;
+}
+
+/* Body (cropper area) */
+.rethink-cropper__body {
+  padding: 0;
+  background: #f9f9f9;
+}
+
+/* Toolbar */
+.rethink-cropper__toolbar {
+  display: flex;
+  justify-content: space-around;
+  gap: 8px;
+  padding: 12px;
+  background: #f1f1f1;
+  border-top: 1px solid #ccc;
+}
+
+.rethink-cropper__tool {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: none;
+  background: #fff;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.15s ease;
+
+  &:hover {
+    background-color: #e0f0e9;
+  }
+}

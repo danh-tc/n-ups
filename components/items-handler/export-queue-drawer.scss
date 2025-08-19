@@ -1,0 +1,121 @@
+.rethink-queue-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 30%;
+  height: 100vh;
+  background: #fff;
+  border-left: 1px solid #e5e5e5;
+  box-shadow: -12px 0 24px rgba(0, 0, 0, 0.06);
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+
+  &__overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100dvh;
+    background: rgba(
+      0,
+      0,
+      0,
+      0.35
+    ); /* or transparent if you don't want a dim */
+    display: flex;
+    align-items: stretch;
+    justify-content: flex-end; /* right-side drawer */
+    z-index: 10000;
+  }
+
+  &__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 12px;
+    border-bottom: 1px solid #eee;
+    gap: 8px;
+  }
+
+  &__title {
+    font-weight: 600;
+    font-size: 14px;
+  }
+
+  &__count {
+    font-weight: 400;
+    color: #666;
+  }
+
+  &__actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  &__footer {
+    padding: 10px 12px;
+    border-top: 1px solid #eee;
+    margin-top: auto;
+  }
+
+  &__hint {
+    font-size: 12px;
+    color: #666;
+  }
+}
+
+.rethink-queue-list {
+  list-style: none;
+  margin: 0;
+  padding: 8px 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.rethink-queue-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px dashed #eee;
+
+  &__handle {
+    width: 16px;
+    text-align: center;
+    color: #999;
+    user-select: none;
+  }
+
+  &__meta {
+    display: grid;
+    gap: 2px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  &__title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #111;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__sub {
+    font-size: 12px;
+    color: #666;
+  }
+
+  &__actions {
+    display: flex;
+    gap: 6px;
+  }
+
+  &--empty {
+    color: #666;
+    font-size: 13px;
+  }
+}

@@ -1,0 +1,59 @@
+/* Meta Info — desktop density, matches other forms */
+.rethink-meta-info-form {
+  --fs-body: 14px;
+  --fs-label: 13px;
+  --input-h: 36px;
+  --radius: 10px;
+
+  /* layout container */
+  &__content {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    column-gap: 16px;
+    row-gap: 12px;
+    min-width: 0;
+  }
+
+  /* Checkbox aligns text beside control; small emphasis */
+  &__checkbox {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    font-size: var(--fs-label);
+    color: #374151; /* slate-700 */
+    min-width: 180px;
+
+    input[type="checkbox"] {
+      /* modern checkbox tint */
+      accent-color: #111;
+      transform: translateY(1px);
+    }
+  }
+
+  /* Fields: wrap nicely like other forms */
+  &__field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-weight: 600;
+    font-size: var(--fs-label);
+    color: #374151;
+    flex: 1 1 240px;
+    min-width: 220px;
+    max-width: 360px;
+
+    /* wide variant (for Description) */
+    &--wide {
+      flex-basis: 340px;
+      min-width: 320px;
+      max-width: 560px;
+    }
+  }
+
+  /* Dim the section when metadata is off */
+  &--muted {
+    opacity: 0.7;
+  }
+}

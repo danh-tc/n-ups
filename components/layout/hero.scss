@@ -1,0 +1,84 @@
+.rethink-hero {
+  background: linear-gradient(180deg, #fff, #fafafa);
+  border-bottom: 1px solid #eee;
+
+  &__inner {
+    height: 520px;
+    display: grid;
+    grid-template-columns: 1.1fr 1fr;
+    gap: 48px;
+    align-items: center;
+    // padding-block: 56px;
+  }
+
+  &__title {
+    margin: 0 0 12px;
+    font-size: 44px;
+    line-height: 1.1;
+    color: #111;
+  }
+  &__subtitle {
+    margin: 0 0 24px;
+    max-width: 56ch;
+    font-size: 16px;
+    color: #555;
+  }
+
+  /* keep only layout for actions; button visuals come from .rethink-btn */
+  &__actions {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+
+  &__meta {
+    font-size: 12px;
+    color: #777;
+  }
+
+  &__art {
+    position: relative;
+    height: 360px;
+    border-radius: 14px;
+    overflow: hidden;
+    background: #fff;
+    border: 1px solid #e9e9e9;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.06);
+  }
+
+  &__art-img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+  }
+  &__art-img--visible {
+    opacity: 1;
+  }
+
+  &__art-placeholder {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    text-align: center;
+    color: #666;
+    font-size: 14px;
+    background-image: repeating-linear-gradient(
+      -45deg,
+      #f8f8f8 0,
+      #f8f8f8 8px,
+      #fff 8px,
+      #fff 16px
+    );
+    transition: opacity 0.2s ease;
+  }
+  &__art-placeholder--hidden {
+    opacity: 0;
+    pointer-events: none;
+  }
+}

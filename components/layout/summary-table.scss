@@ -1,0 +1,70 @@
+/* Modern key–value summary (desktop). Wrapped by your card container. */
+.rethink-summary {
+  font-size: 14px;
+  /* Let the parent card control padding/background. Keep this neutral. */
+}
+
+.rethink-summary__list {
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px; /* vertical rhythm between rows */
+}
+
+.rethink-summary__row {
+  display: grid;
+  grid-template-columns: 1fr auto; /* label | value cell */
+  align-items: center;
+  min-height: 40px;
+  padding: 6px 0;
+  border-bottom: 1px solid #eee;
+}
+.rethink-summary__row:last-child {
+  border-bottom: 0;
+}
+
+.rethink-summary__label {
+  color: #475467; /* slate-600 */
+  font-size: 13px;
+}
+
+.rethink-summary__value-cell {
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  min-width: 0;
+}
+
+.rethink-summary__value {
+  color: #111;
+  font-weight: 600;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.rethink-summary__row--em .rethink-summary__value {
+  font-size: 15px;
+}
+
+/* Usage bar */
+.rethink-summary__usage {
+  width: 100%;
+  max-width: 260px; /* keeps bar tidy in narrow cards */
+  height: 8px;
+  border-radius: 999px;
+  background: #eef2f7;
+  overflow: hidden;
+}
+.rethink-summary__usage-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #111, #444);
+  border-radius: inherit;
+  width: 0;
+  transition: width 0.25s ease;
+}
+.rethink-summary__usage-note {
+  font-size: 12px;
+  color: #98a2b3;
+}

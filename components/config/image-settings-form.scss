@@ -1,0 +1,45 @@
+/* components/config/image-settings-form.scss */
+.rethink-image-settings-form {
+  --fs-body: 14px;
+  --fs-label: 13px;
+  --input-h: 36px;
+  --radius: 10px;
+
+  display: grid;
+  gap: 14px;
+
+  &__section {
+    display: grid;
+    gap: 8px;
+  }
+
+  &__title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #111;
+  }
+
+  &__grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+
+    &--margins {
+      grid-template-columns: repeat(4, 1fr);
+    }
+  }
+
+  &__actions {
+    margin-top: 6px;
+  }
+}
+
+.rethink-field {
+  display: grid;
+  gap: 6px;
+
+  &__label {
+    font-size: 12px;
+    color: #555;
+  }
+}

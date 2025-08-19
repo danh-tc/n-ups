@@ -1,0 +1,81 @@
+.rethink-paper-settings-form {
+  /* --- Typography + density tokens (desktop) --- */
+  --fs-body: 14px; /* input text */
+  --fs-label: 13px; /* field label */
+  --lh: 1.25;
+  --input-h: 36px; /* input height */
+  --radius: 10px;
+
+  /* widths for flexible rows */
+  --field-min: 220px;
+  --field-max: 340px;
+  --field-min-margins: 180px;
+  --field-max-margins: 280px;
+
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+
+  h3 {
+    margin: 0 0 8px;
+    font-size: 16px;
+    line-height: 1.2;
+    letter-spacing: 0.02em;
+    color: #111;
+  }
+
+  /* rows: flex + wrap so nothing overlaps the preview */
+  &__dimensions,
+  &__margins,
+  &__gap {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    column-gap: 16px;
+    row-gap: 12px;
+    min-width: 0;
+  }
+
+  /* 2-up groups */
+  &__dimensions > label,
+  &__gap > label {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 var(--field-min);
+    min-width: var(--field-min);
+    max-width: var(--field-max);
+  }
+
+  /* 4-up group (margins) */
+  &__margins > label {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 var(--field-min-margins);
+    min-width: var(--field-min-margins);
+    max-width: var(--field-max-margins);
+  }
+
+  /* labels */
+  label {
+    font-weight: 600;
+    font-size: var(--fs-label);
+    color: #374151; /* slate-700 */
+    min-width: 0;
+    gap: 6px;
+  }
+
+  /* optional invalid state (toggle parent .is-invalid on <label>) */
+  .is-invalid > .rethink-input {
+    border-color: #ef4444;
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12);
+  }
+
+  /* density variant if you ever need it */
+  &--compact {
+    --fs-body: 13px;
+    --fs-label: 12px;
+    --input-h: 32px;
+    --radius: 8px;
+  }
+}

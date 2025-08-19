@@ -1,0 +1,22 @@
+/* components/layout/image-cell.scss */
+.image-cell {
+  background: #fff;
+  border: 1px solid #ccc;
+  box-sizing: border-box;
+  border-radius: 6px;
+  transition: box-shadow 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+
+  .img-placeholder {
+    width: 100%;
+    height: 100%;
+    background: #e2e8f0;
+    border: 1px dashed #b3b3b3;
+    opacity: 0.5;
+  }
+}

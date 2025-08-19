@@ -1,0 +1,176 @@
+/* Centering wrapper (keeps preview centered in the page section) */
+.rethink-paper-preview-wrap {
+  width: 100%;
+  display: grid;
+  place-items: center;
+  min-height: 50dvh;
+  padding: 8px 0;
+}
+
+/* Block: rethink-paper-preview */
+.rethink-paper-preview {
+  position: relative;
+  overflow: hidden;
+  box-sizing: border-box;
+  margin: 0 auto;
+
+  /* visual polish */
+  background: #f9f9f9;
+  border: 2px solid #888;
+  border-radius: 10px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.04);
+
+  &__margin {
+    position: absolute;
+    border: 2px dashed #bbb;
+    box-sizing: border-box;
+    z-index: 1;
+  }
+
+  &__grid {
+    position: absolute;
+    display: grid; /* templates/gaps injected inline */
+    z-index: 2;
+  }
+
+  &__meta {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    color: #373737;
+    letter-spacing: 0.02em;
+    font-size: 8px;
+    font-family: inherit;
+    opacity: 0.96;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    z-index: 3;
+  }
+}
+
+/* Grid cell content */
+.rethink-image-slot {
+  position: relative;
+  width: 100%;
+  height: 100%;
+
+  /* Auto-scaling controls based on the smaller cell dimension */
+  --btn-size: clamp(
+    20px,
+    calc(min(var(--cell-w, 0px), var(--cell-h, 0px)) * 0.15),
+    44px
+  );
+  --icon-size: calc(var(--btn-size) * 0.65);
+  --btn-gap: calc(var(--btn-size) * 0.25);
+  --btn-offset: clamp(4px, calc(var(--btn-size) * 0.33), 12px);
+
+  &__inset {
+    position: absolute; /* top/left/width/height inline */
+    box-sizing: border-box;
+    border: 1px dashed green;
+    background: #fff;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 0;
+  }
+
+  img,
+  &__inset > img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  /* Actions overlay — centered horizontally */
+  &__actions {
+    position: absolute;
+    top: var(--btn-offset);
+    left: 50%;
+    transform: translateX(-50%); /* horizontal center */
+    display: flex;
+    gap: var(--btn-gap);
+    z-index: 10;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.16s ease;
+  }
+  &:hover &__actions {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  &__action-btn {
+    width: var(--btn-size);
+    height: var(--btn-size);
+    border: none;
+    outline: none;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    box-shadow: 0 2px 8px #0001;
+    cursor: pointer;
+    transition: background 0.18s ease, color 0.18s ease;
+
+    svg {
+      width: var(--icon-size);
+      height: var(--icon-size);
+      flex: 0 0 auto;
+    }
+
+    &--crop {
+      background: #e0e1e2;
+      color: #357a58;
+      &:hover {
+        background: #eaeaea;
+        color: #219968;
+      }
+    }
+    &--remove {
+      background: #fa5533;
+      color: #fff;
+      &:hover {
+        background: #f34a2b;
+        color: #fff;
+      }
+    }
+  }
+
+  &__upload,
+  &--upload {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    background: #f3f5f7;
+    border: 0;
+
+    input[type="file"] {
+      display: none;
+    }
+    .rethink-image-slot__add-icon {
+      font-size: 2rem;
+      color: #7b8c8e;
+      line-height: 1;
+    }
+
+    &:hover {
+      background: #eef2f6;
+    }
+  }
+
+  &__placeholder,
+  &--placeholder {
+    width: 100%;
+    height: 100%;
+    background: #eef2f6;
+  }
+}

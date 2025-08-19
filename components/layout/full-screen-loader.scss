@@ -1,0 +1,79 @@
+.rethink-loader {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: all;
+
+  &__backdrop {
+    position: absolute;
+    inset: 0;
+    background: #ffffff;
+  }
+
+  &__content {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    text-align: center;
+  }
+
+  &__stack {
+    display: grid;
+    justify-items: center;
+    row-gap: 12px;
+    padding: 16px;
+  }
+
+  &__logo {
+    width: 120px;
+    height: auto;
+    display: block;
+    user-select: none;
+  }
+
+  &__text {
+    font-size: 14px;
+    line-height: 1.6;
+    letter-spacing: 0.2px;
+    margin: 0;
+  }
+
+  &__dots {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 2px;
+  }
+
+  &__dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #b8864d;
+    animation: rethink-loader-bounce 1.2s ease-in-out infinite;
+
+    &--1 {
+      animation-delay: 0s;
+    }
+    &--2 {
+      animation-delay: 0.15s;
+    }
+    &--3 {
+      animation-delay: 0.3s;
+    }
+  }
+}
+
+@keyframes rethink-loader-bounce {
+  0%,
+  80%,
+  100% {
+    transform: scale(0.8);
+    opacity: 0.6;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}

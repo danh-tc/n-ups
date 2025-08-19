@@ -1,0 +1,92 @@
+/* Distinct, structured footer */
+.rethink-footer {
+  --footer-bg: #eef2f7; /* stronger tint for separation */
+  --footer-border: #d8dde6;
+  --footer-bar-bg: #e9eef5;
+
+  background: #fff; /* default (overridden by --tint) */
+  border-top: 1px solid var(--footer-border);
+
+  &--tint {
+    background: linear-gradient(180deg, #f6f8fc 0%, var(--footer-bg) 100%);
+    /* subtle lift so it separates from body */
+    box-shadow: 0 -1px 0 rgba(0, 0, 0, 0.05) inset,
+      0 -14px 28px rgba(17, 24, 39, 0.05);
+  }
+
+  &__inner {
+    padding-block: 56px;
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
+    gap: 56px;
+  }
+
+  /* columns */
+  &__col {
+    min-width: 0;
+  } /* avoid overflow on long text */
+
+  /* brand */
+  &__logo {
+    font-family: "Times New Roman", serif;
+    font-size: 22px;
+    color: #0f172a;
+    line-height: 1.1;
+    margin-bottom: 10px;
+  }
+  &__tagline {
+    color: #667085;
+    font-size: 14px;
+    margin: 0;
+    max-width: 42ch;
+  }
+
+  /* headings + links */
+  &__heading {
+    color: #8b8f97;
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+
+  /* stack links vertically */
+  &__nav {
+    display: grid;
+    grid-auto-rows: min-content;
+    gap: 10px;
+  }
+  &__link {
+    display: block; /* <-- ensures stacking */
+    color: #3f4a5a;
+    text-decoration: none;
+    padding: 2px 0;
+    transition: color 0.15s ease, transform 0.15s ease;
+    &:hover {
+      color: #111;
+      transform: translateX(1px);
+    }
+  }
+
+  /* Bottom bar */
+  &__bar {
+    background: var(--footer-bar-bg);
+    border-top: 1px solid var(--footer-border);
+  }
+  &__bar-inner {
+    height: 56px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 16px;
+  }
+  &__copy {
+    color: #667085;
+    font-size: 13px;
+  }
+  &__note {
+    color: #98a2b3;
+    font-size: 13px;
+  }
+}

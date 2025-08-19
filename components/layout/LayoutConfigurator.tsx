@@ -33,7 +33,6 @@ export default function LayoutConfigurator() {
   return (
     <section className="rethink-layout-configurator">
       <div className="rethink-layout-configurator__inner rethink-container">
-        {/* LEFT: stacked forms */}
         <div className="rethink-layout-configurator__main">
           <div className="rethink-layout-configurator__card">
             <h2 className="rethink-layout-configurator__section-title">
@@ -44,7 +43,7 @@ export default function LayoutConfigurator() {
 
           <div className="rethink-layout-configurator__card">
             <h2 className="rethink-layout-configurator__section-title">
-              Image Settings
+              Hangtag Settings
             </h2>
             <ImageSettingsForm value={image} onChange={setImage} />
           </div>

@@ -30,6 +30,8 @@ export interface PaperConfig {
     horizontal: number;
     vertical: number;
   };
+  duplex?: boolean;
+  cutMarkLengthMm?: number;
 }
 
 export type ImageMargin = {
@@ -40,8 +42,8 @@ export type ImageMargin = {
 };
 
 export interface ImageConfig {
-  width: number;   // mm
-  height: number;  // mm
+  width: number; // mm
+  height: number; // mm
   margin: ImageMargin; // per-image inner whitespace (mm)
 }
 

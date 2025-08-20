@@ -1,118 +1,152 @@
 "use client";
 
+import React, { useMemo } from "react";
 import "./summary-table.scss";
+import { useImpositionStore } from "@/store/useImpositionStore";
+import type { PaperConfig, ImageConfig } from "@/types/types";
 
-interface Props {
-  paper: { width: number; height: number };
-  image: { width: number; height: number };
-  layout: { rows: number; cols: number; totalSlots: number };
-  gap: { horizontal: number; vertical: number };
-  margin: { top: number; right: number; bottom: number; left: number };
+const clamp0 = (n: number): number => (Number.isFinite(n) && n > 0 ? n : 0);
+const eq = (a: number, b: number): boolean => Math.abs(a - b) < 1e-6;
+
+function formatMm(n: number, digits = 1): string {
+  return `${Number(n.toFixed(digits))} mm`;
+}
+function formatMm2(n: number): string {
+  const abs = Math.abs(n);
+  const digits = abs >= 10000 ? 0 : 1;
+  return `${Number(n.toFixed(digits)).toLocaleString()} mm²`;
+}
+function formatPct(n: number, digits = 1): string {
+  return `${n.toFixed(digits)}%`;
 }
 
-export const SummaryTable: React.FC<Props> = ({
-  paper,
-  image,
-  layout,
-  gap,
-  margin,
-}) => {
-  const printedWidth =
-    layout.cols * image.width + (layout.cols - 1) * gap.horizontal;
-  const printedHeight =
-    layout.rows * image.height + (layout.rows - 1) * gap.vertical;
+/** Printed (placeable) area after margins AND crop-marks */
+function computePrintedArea(paper: PaperConfig): {
+  printedW: number;
+  printedH: number;
+  printedArea: number;
+} {
+  const { width, height, margin, cutMarkLengthMm } = paper;
+  const cut = clamp0(cutMarkLengthMm ?? 0);
 
-  const paperArea = paper.width * paper.height;
-  const printedArea = printedWidth * printedHeight;
-  const usageRaw = (printedArea / paperArea) * 100;
-  const usagePercent = usageRaw.toFixed(2);
-  const usageClamped = Math.max(0, Math.min(100, usageRaw)); // for bar width
+  const printedW = clamp0(width - margin.left - margin.right - 2 * cut);
+  const printedH = clamp0(height - margin.top - margin.bottom - 2 * cut);
+
+  return { printedW, printedH, printedArea: printedW * printedH };
+}
+
+/** Layout = rows/cols/items based on printed area + tag footprint */
+function computeLayout(
+  paper: PaperConfig,
+  image: ImageConfig
+): {
+  rows: number;
+  cols: number;
+  items: number;
+  tagW: number;
+  tagH: number;
+  printedW: number;
+  printedH: number;
+} {
+  const { printedW, printedH } = computePrintedArea(paper);
+
+  const m = image.margin ?? { top: 0, right: 0, bottom: 0, left: 0 };
+  const tagW = clamp0(image.width + clamp0(m.left) + clamp0(m.right));
+  const tagH = clamp0(image.height + clamp0(m.top) + clamp0(m.bottom));
+
+  const gapX = clamp0(paper.gap.horizontal);
+  const gapY = clamp0(paper.gap.vertical);
+
+  const cols =
+    tagW <= 0 ? 0 : Math.max(0, Math.floor((printedW + gapX) / (tagW + gapX)));
+  const rows =
+    tagH <= 0 ? 0 : Math.max(0, Math.floor((printedH + gapY) / (tagH + gapY)));
+
+  return { rows, cols, items: rows * cols, tagW, tagH, printedW, printedH };
+}
+
+export const SummaryTable: React.FC = () => {
+  const paper = useImpositionStore((s) => s.paper);
+  const image = useImpositionStore((s) => s.image);
+
+  const { rows, cols, items, tagW, tagH, printedW, printedH } = useMemo(
+    () => computeLayout(paper, image),
+    [paper, image]
+  );
+
+  const printedArea = useMemo(() => printedW * printedH, [printedW, printedH]);
+
+  const paperArea = clamp0(paper.width * paper.height);
+  const scrapArea = Math.max(0, paperArea - printedArea);
+  const scrapPct = paperArea > 0 ? (scrapArea / paperArea) * 100 : 0;
+
+  const guttersH = image.margin?.left ?? 0;
+  const guttersV = image.margin?.top ?? 0;
 
   return (
-    <section className="rethink-summary" aria-label="Layout summary">
-      <dl className="rethink-summary__list">
+    <div className="rethink-summary">
+      <div className="rethink-summary__header">
+        <h3>Summary</h3>
+        <div className="rethink-summary__mode">
+          {paper.duplex ? "Duplex" : "Simplex"}
+        </div>
+      </div>
+
+      <dl className="rethink-summary__grid">
         <div className="rethink-summary__row">
-          <dt className="rethink-summary__label">Paper Size</dt>
-          <dd className="rethink-summary__value-cell">
-            <span className="rethink-summary__value">
-              {paper.width}mm × {paper.height}mm
-            </span>
+          <dt>Paper size</dt>
+          <dd>
+            {formatMm(paper.width)} × {formatMm(paper.height)}
           </dd>
         </div>
 
         <div className="rethink-summary__row">
-          <dt className="rethink-summary__label">Margin (T/R/B/L)</dt>
-          <dd className="rethink-summary__value-cell">
-            <span className="rethink-summary__value">
-              {margin.top} / {margin.right} / {margin.bottom} / {margin.left} mm
-            </span>
+          <dt>Gutter</dt>
+          <dd>
+            H {formatMm(guttersH)} • V {formatMm(guttersV)}
           </dd>
         </div>
 
         <div className="rethink-summary__row">
-          <dt className="rethink-summary__label">Gap (Vertical × Horizontal)</dt>
-          <dd className="rethink-summary__value-cell">
-            <span className="rethink-summary__value">
-              {gap.vertical}mm × {gap.horizontal}mm
-            </span>
+          <dt>Hangtag size</dt>
+          <dd>
+            {formatMm(image.width)} × {formatMm(image.height)}
           </dd>
         </div>
 
         <div className="rethink-summary__row">
-          <dt className="rethink-summary__label">Image Size</dt>
-          <dd className="rethink-summary__value-cell">
-            <span className="rethink-summary__value">
-              {image.width}mm × {image.height}mm
-            </span>
+          <dt>Layout</dt>
+          <dd>
+            {rows} × {cols} = <b>{items}</b> <span>items</span>
+          </dd>
+        </div>
+
+        <div className="rethink-summary__row rethink-summary__row--wrap">
+          <dt>Printed area</dt>
+          <dd>
+            {formatMm(printedW)} × {formatMm(printedH)} ={" "}
+            <b>{formatMm2(printedArea)}</b>
           </dd>
         </div>
 
         <div className="rethink-summary__row">
-          <dt className="rethink-summary__label">Grid</dt>
-          <dd className="rethink-summary__value-cell">
-            <span className="rethink-summary__value">
-              {layout.rows} rows × {layout.cols} columns
-            </span>
-          </dd>
-        </div>
-
-        <div className="rethink-summary__row rethink-summary__row--em">
-          <dt className="rethink-summary__label">Total Slots</dt>
-          <dd className="rethink-summary__value-cell">
-            <span className="rethink-summary__value">{layout.totalSlots}</span>
-          </dd>
-        </div>
-
-        <div className="rethink-summary__row">
-          <dt className="rethink-summary__label">Printed Area (incl. gap)</dt>
-          <dd className="rethink-summary__value-cell">
-            <span className="rethink-summary__value">
-              {printedWidth.toFixed(1)}mm × {printedHeight.toFixed(1)}mm
-            </span>
-          </dd>
-        </div>
-
-        <div className="rethink-summary__row">
-          <dt className="rethink-summary__label">Usage</dt>
-          <dd className="rethink-summary__value-cell">
-            <span className="rethink-summary__value">{usagePercent}%</span>
-            <div
-              className="rethink-summary__usage"
-              role="progressbar"
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-valuenow={Number(usagePercent)}
-              aria-label="Paper area used"
-            >
-              <div
-                className="rethink-summary__usage-fill"
-                style={{ width: `${usageClamped}%` }} // dynamic inline width only
-              />
-            </div>
-            <span className="rethink-summary__usage-note">of paper area</span>
+          <dt>Scrap</dt>
+          <dd>
+            {formatMm2(scrapArea)} • {formatPct(scrapPct)}
           </dd>
         </div>
       </dl>
-    </section>
+
+      <div className="rethink-summary__footer">
+        <span className="rethink-summary__muted">
+          Tag footprint (including gutters): {formatMm(tagW)} × {formatMm(tagH)}
+        </span>
+        {eq(printedW, 0) || eq(printedH, 0) ? (
+          <span className="rethink-summary__warn">
+            Printed area is zero—check margins or crop mark length.
+          </span>
+        ) : null}
+      </div>
+    </div>
   );
 };

@@ -1,70 +1,157 @@
-/* Modern key–value summary (desktop). Wrapped by your card container. */
+/* Card-neutral container. Parent controls outer padding/bg. */
 .rethink-summary {
+  --bd: #e5e7eb; /* border */
+  --fg: #111; /* primary text */
+  --muted: #475467; /* label text */
+  --hint: #98a2b3; /* secondary hint */
+  --row-sep: #eee; /* row divider */
+
   font-size: 14px;
-  /* Let the parent card control padding/background. Keep this neutral. */
-}
-
-.rethink-summary__list {
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 6px; /* vertical rhythm between rows */
-}
-
-.rethink-summary__row {
-  display: grid;
-  grid-template-columns: 1fr auto; /* label | value cell */
-  align-items: center;
-  min-height: 40px;
-  padding: 6px 0;
-  border-bottom: 1px solid #eee;
-}
-.rethink-summary__row:last-child {
-  border-bottom: 0;
-}
-
-.rethink-summary__label {
-  color: #475467; /* slate-600 */
-  font-size: 13px;
-}
-
-.rethink-summary__value-cell {
-  text-align: right;
+  color: var(--fg);
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
-  gap: 6px;
-  min-width: 0;
-}
+  gap: 10px;
 
-.rethink-summary__value {
-  color: #111;
-  font-weight: 600;
-  font-size: 14px;
-  white-space: nowrap;
-}
+  /* header */
+  &__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
 
-.rethink-summary__row--em .rethink-summary__value {
-  font-size: 15px;
-}
+    h3 {
+      margin: 0;
+      font-size: 15px;
+      line-height: 1.2;
+      letter-spacing: 0.01em;
+    }
+  }
 
-/* Usage bar */
-.rethink-summary__usage {
-  width: 100%;
-  max-width: 260px; /* keeps bar tidy in narrow cards */
-  height: 8px;
-  border-radius: 999px;
-  background: #eef2f7;
-  overflow: hidden;
-}
-.rethink-summary__usage-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #111, #444);
-  border-radius: inherit;
-  width: 0;
-  transition: width 0.25s ease;
-}
-.rethink-summary__usage-note {
-  font-size: 12px;
-  color: #98a2b3;
+  /* simplex/duplex pill */
+  &__mode {
+    font-size: 12px;
+    color: #374151;
+    background: #f3f4f6;
+    border: 1px solid var(--bd);
+    padding: 4px 8px;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+
+  /* key-value grid */
+  &__grid {
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 6px;
+  }
+
+  &__row {
+    display: grid;
+    grid-template-columns: 140px 1fr; /* label | value */
+    align-items: baseline;
+    min-height: 38px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--row-sep);
+
+    dt {
+      margin: 0;
+      color: var(--muted);
+      font-weight: 600;
+      font-size: 12.5px;
+    }
+    dd {
+      margin: 0;
+      text-align: right;
+      font-size: 14px;
+      color: var(--fg);
+      display: flex;
+      justify-content: flex-end;
+      align-items: baseline;
+      gap: 6px;
+      white-space: nowrap; /* avoids ugly wraps for “mm × mm” */
+    }
+
+    &--wrap dd {
+      flex-wrap: wrap;
+      white-space: normal; /* allow printed-area formula to wrap nicely */
+    }
+  }
+  &__row:last-child {
+    border-bottom: 0;
+  }
+
+  /* emphasize row (if needed) */
+  &__row--em dd {
+    font-weight: 700;
+  }
+
+  /* subtle highlight for scrap */
+  &__row--scrap {
+    background: #fffafa;
+  }
+
+  /* small note text you append inside values */
+  &__hint {
+    font-size: 12px;
+    color: var(--hint);
+  }
+
+  /* footer line under the table */
+  &__footer {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    padding-top: 4px;
+    border-top: 1px dashed var(--row-sep);
+  }
+  &__muted {
+    font-size: 12px;
+    color: var(--muted);
+  }
+  &__warn {
+    font-size: 12px;
+    color: #b45309;
+  } /* amber-700 */
+
+  /* optional usage bar (if you wire scrap % to width) */
+  &__usage {
+    width: 100%;
+    max-width: 260px;
+    height: 8px;
+    border-radius: 999px;
+    background: #eef2f7;
+    overflow: hidden;
+  }
+  &__usage-fill {
+    height: 100%;
+    width: 0;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #16a34a, #15803d);
+    transition: width 0.25s ease;
+  }
+  &__usage-note {
+    font-size: 12px;
+    color: var(--hint);
+    white-space: nowrap;
+  }
+
+  /* compact on narrow panels */
+  @media (max-width: 560px) {
+    &__row {
+      grid-template-columns: 120px 1fr;
+      min-height: 34px;
+    }
+    &__mode {
+      font-size: 11.5px;
+      padding: 3px 8px;
+    }
+    &__row dt {
+      font-size: 12px;
+    }
+    &__row dd {
+      font-size: 13.5px;
+    }
+  }
 }

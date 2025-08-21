@@ -1,64 +1,148 @@
-/* Centering wrapper (keeps preview centered in the page section) */
+/* ===============================
+ * Paper Preview (flat, high-contrast colors)
+ * =============================== */
+
+:root {
+  --pp-paper: #ebdef8; /* Paper (lavender) */
+  --pp-card: #ffffff;
+
+  --pp-margin: #ffe08a; /* Margins (amber) */
+  --pp-printed: #cfe3ff; /* Printed area (sky) */
+  --pp-tag: #a6dfbd; /* Footprint (mint) */
+  --pp-inset: #ffb5b6; /* Hangtag safe (rose) */
+
+  --pp-text: #0b1220;
+}
+
+[data-contrast="high"] {
+  --pp-paper: #e3d0fb;
+  --pp-margin: #ffd34d;
+  --pp-printed: #a9ccff;
+  --pp-tag: #86d2a7;
+  --pp-inset: #ff9fa0;
+}
+
+/* Center wrapper */
 .rethink-paper-preview-wrap {
   width: 100%;
+  min-height: 50dvh;
   display: grid;
   place-items: center;
-  min-height: 50dvh;
   padding: 8px 0;
 }
 
-/* Block: rethink-paper-preview */
+/* Main container */
 .rethink-paper-preview {
   position: relative;
   overflow: hidden;
   box-sizing: border-box;
   margin: 0 auto;
+  background: var(--pp-card);
 
-  /* visual polish */
-  background: #f9f9f9;
-  border: 2px solid #888;
-  border-radius: 10px;
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.04);
+  /* Paper color */
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: var(--pp-paper);
+  }
 
+  /* Margin band */
   &__margin {
     position: absolute;
-    border: 2px dashed #bbb;
-    box-sizing: border-box;
-    z-index: 1;
+    background: var(--pp-margin);
+    pointer-events: none;
   }
 
+  /* Printed area */
+  &__printed {
+    position: absolute;
+    background: var(--pp-printed);
+    pointer-events: none;
+  }
+
+  /* Grid area */
   &__grid {
     position: absolute;
-    display: grid; /* templates/gaps injected inline */
-    z-index: 2;
+    display: grid;
   }
 
+  /* Meta */
   &__meta {
     position: absolute;
-    left: 0;
-    bottom: 0;
-    width: 100%;
     display: flex;
     align-items: center;
-    color: #373737;
-    letter-spacing: 0.02em;
-    font-size: 8px;
-    font-family: inherit;
-    opacity: 0.96;
+    font-size: 10px;
+    color: var(--pp-text);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    z-index: 3;
+  }
+
+  /* Empty */
+  &__empty {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    font-size: 12px;
+    color: var(--pp-text);
+    text-align: center;
+    padding: 8px;
+  }
+
+  /* Legend */
+  &__legend {
+    position: absolute;
+    padding: 6px 8px;
+    display: grid;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--pp-text);
+    background: #ffffffd9;
+    outline: 1px solid #ccc;
+
+    .legend-item {
+      display: grid;
+      grid-template-columns: 16px auto;
+      align-items: center;
+      gap: 6px;
+      line-height: 1.2;
+    }
+    .legend-swatch {
+      width: 16px;
+      height: 12px;
+      border-radius: 2px;
+      &--paper {
+        background: var(--pp-paper);
+      }
+      &--margin {
+        background: var(--pp-margin);
+      }
+      &--printed {
+        background: var(--pp-printed);
+      }
+      &--tag {
+        background: var(--pp-tag);
+      }
+      &--inset {
+        background: var(--pp-inset);
+      }
+    }
+    .legend-label {
+      white-space: nowrap;
+    }
   }
 }
 
-/* Grid cell content */
+/* Cells */
 .rethink-image-slot {
   position: relative;
   width: 100%;
   height: 100%;
+  box-sizing: border-box;
+  background: var(--pp-tag); /* footprint */
 
-  /* Auto-scaling controls based on the smaller cell dimension */
   --btn-size: clamp(
     20px,
     calc(min(var(--cell-w, 0px), var(--cell-h, 0px)) * 0.15),
@@ -68,32 +152,30 @@
   --btn-gap: calc(var(--btn-size) * 0.25);
   --btn-offset: clamp(4px, calc(var(--btn-size) * 0.33), 12px);
 
+  /* Inset (safe) = image area */
   &__inset {
-    position: absolute; /* top/left/width/height inline */
-    box-sizing: border-box;
-    border: 1px dashed green;
-    background: #fff;
+    position: absolute;
+    background: var(--pp-inset);
     overflow: hidden;
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 0;
   }
 
   img,
   &__inset > img {
-    display: block;
     width: 100%;
     height: 100%;
     object-fit: cover;
+    display: block;
   }
 
-  /* Actions overlay — centered horizontally */
+  /* Actions (kept minimal) */
   &__actions {
     position: absolute;
     top: var(--btn-offset);
     left: 50%;
-    transform: translateX(-50%); /* horizontal center */
+    transform: translateX(-50%);
     display: flex;
     gap: var(--btn-gap);
     z-index: 10;
@@ -109,68 +191,30 @@
   &__action-btn {
     width: var(--btn-size);
     height: var(--btn-size);
-    border: none;
-    outline: none;
     border-radius: 50%;
+    border: none;
     display: grid;
     place-items: center;
-    box-shadow: 0 2px 8px #0001;
     cursor: pointer;
-    transition: background 0.18s ease, color 0.18s ease;
-
+    transition: opacity 0.18s ease;
+    background: #e5e7eb;
     svg {
       width: var(--icon-size);
       height: var(--icon-size);
-      flex: 0 0 auto;
     }
-
     &--crop {
-      background: #e0e1e2;
-      color: #357a58;
-      &:hover {
-        background: #eaeaea;
-        color: #219968;
-      }
+      background: #e5e7eb;
+      color: #065f46;
     }
     &--remove {
-      background: #fa5533;
+      background: #ef4444;
       color: #fff;
-      &:hover {
-        background: #f34a2b;
-        color: #fff;
-      }
     }
   }
 
-  &__upload,
-  &--upload {
+  &__placeholder {
     width: 100%;
     height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    background: #f3f5f7;
-    border: 0;
-
-    input[type="file"] {
-      display: none;
-    }
-    .rethink-image-slot__add-icon {
-      font-size: 2rem;
-      color: #7b8c8e;
-      line-height: 1;
-    }
-
-    &:hover {
-      background: #eef2f6;
-    }
-  }
-
-  &__placeholder,
-  &--placeholder {
-    width: 100%;
-    height: 100%;
-    background: #eef2f6;
+    background: #fff;
   }
 }

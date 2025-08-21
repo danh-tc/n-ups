@@ -1,9 +1,7 @@
 /* components/layout/image-cell.scss */
 .image-cell {
-  background: #fff;
-  border: 1px solid #ccc;
   box-sizing: border-box;
-  border-radius: 6px;
+  // outline: 0.5px solid #ccc;
   transition: box-shadow 0.2s;
   display: flex;
   align-items: center;

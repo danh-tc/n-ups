@@ -1,15 +1,12 @@
 "use client";
 
 import "./items-handler.scss";
-import React, { useEffect, useState, useMemo } from "react";
-import { BulkImageUploader } from "@/components/items-handler/BulkImageUploader";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { PaperPreview } from "../layout/PaperPreview";
 import { calculateGridLayout } from "@/lib/layoutCalculator";
 import { useImpositionStore } from "@/store/useImpositionStore";
-import { SheetPaginator } from "./SheetPaginator";
 import { useHydrated } from "@/hooks/useImpositionHydrated";
-import { CropSettings, UploadedImage } from "@/types/types";
-import { CropperModal } from "./CropperModal";
+import { UploadedImage } from "@/types/types";
 import { exportImpositionPdf } from "@/lib/exportImpositionPdf";
 import { autoCoverCrop } from "@/lib/autoCoverCrop";
 import { rotateIfNeeded } from "@/lib/rotateIfNeeded";
@@ -17,49 +14,65 @@ import ExportQueueDrawer from "./ExportQueueDrawer";
 import { useExportQueueStore } from "@/store/useExportQueueStore";
 import FullScreenBrandedLoader from "../layout/FullScreenLoader";
 import { useLoadingTask } from "@/hooks/useLoadingTask";
-import PdfUpload from "./PdfUpload";
+import PdfUpload, { type PdfPageImage } from "./PdfUpload";
+import { JSX } from "react/jsx-runtime";
 
-export default function ItemsHandler() {
+/** Rotate a dataURL 90deg clockwise */
+async function rotateDataUrl90(dataUrl: string): Promise<string> {
+  const img = new Image();
+  await new Promise<void>((res, rej) => {
+    img.onload = () => res();
+    img.onerror = (e) => rej(e);
+    img.src = dataUrl;
+  });
+  const canvas = document.createElement("canvas");
+  canvas.width = img.height;
+  canvas.height = img.width;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Failed to get 2D context");
+  ctx.translate(canvas.width / 2, canvas.height / 2);
+  ctx.rotate((90 * Math.PI) / 180);
+  ctx.drawImage(img, -img.width / 2, -img.height / 2);
+  return canvas.toDataURL("image/png");
+}
+
+export default function ItemsHandler(): JSX.Element | null {
+  // Front / Back sheets
   const [images, setImages] = useState<(UploadedImage | undefined)[]>([]);
-  const [currentSheet, setCurrentSheet] = useState(0);
+  const [backImages, setBackImages] = useState<(UploadedImage | undefined)[]>(
+    []
+  );
 
   const image = useImpositionStore((s) => s.image);
   const paper = useImpositionStore((s) => s.paper);
   const meta = useImpositionStore((s) => s.meta);
   const displayMeta = useImpositionStore((s) => s.displayMeta);
+  const duplex = useImpositionStore((s) => s.paper.duplex ?? false);
 
   const { isLoading, runWithLoading } = useLoadingTask();
 
   const layout = calculateGridLayout(paper, image);
   const slotsPerSheet = layout.rows * layout.cols;
 
-  // --- Derived: do we have any uploaded images at all? ---
-  const hasAnyImage = useMemo(() => images.some(Boolean), [images]);
+  const ensureCapacity = useCallback(
+    (arr: (UploadedImage | undefined)[]): (UploadedImage | undefined)[] => {
+      if (arr.length === slotsPerSheet) return arr;
+      if (arr.length > slotsPerSheet) return arr.slice(0, slotsPerSheet);
+      return [...arr, ...Array(slotsPerSheet - arr.length).fill(undefined)];
+    },
+    [slotsPerSheet]
+  );
 
-  // Build sheets
-  const sheets: (UploadedImage | undefined)[][] = [];
-  for (let i = 0; i < images.length; i += slotsPerSheet) {
-    sheets.push(images.slice(i, i + slotsPerSheet));
-  }
-  if (sheets.length === 0) {
-    sheets.push(Array(slotsPerSheet).fill(undefined));
-  } else if (sheets[sheets.length - 1].length < slotsPerSheet) {
-    sheets[sheets.length - 1] = [
-      ...sheets[sheets.length - 1],
-      ...Array(slotsPerSheet - sheets[sheets.length - 1].length).fill(
-        undefined
-      ),
-    ];
-  }
+  useEffect(() => {
+    setImages((prev) => ensureCapacity(prev));
+    setBackImages((prev) => ensureCapacity(prev));
+  }, [ensureCapacity]);
 
-  const [cropModal, setCropModal] = useState<{
-    open: boolean;
-    slotIdx: number | null;
-    src: string | null;
-    initialCrop?: CropSettings;
-  }>({ open: false, slotIdx: null, src: null });
+  const hasAnyFront = useMemo(() => images.some(Boolean), [images]);
+  const hasAnyBack = useMemo(() => backImages.some(Boolean), [backImages]);
+  const hasAnyImage = hasAnyFront || hasAnyBack;
 
-  // ===== Export List (Queue) via Zustand + IndexedDB =====
+  // ===== Export Queue (unchanged) =====
   const queueItems = useExportQueueStore((s) => s.items);
   const hydrateQueue = useExportQueueStore((s) => s.hydrate);
   const addToQueue = useExportQueueStore((s) => s.add);
@@ -67,79 +80,150 @@ export default function ItemsHandler() {
   const clearQueue = useExportQueueStore((s) => s.clear);
   const moveQueue = useExportQueueStore((s) => s.move);
   const exportAllQueued = useExportQueueStore((s) => s.exportAll);
-
   const [isQueueOpen, setIsQueueOpen] = useState(false);
 
   useEffect(() => {
     hydrateQueue();
   }, [hydrateQueue]);
 
-  // open crop modal — always from original
-  const handleSlotEditImage = (slotIdx: number) => {
-    const baseIndex = currentSheet * slotsPerSheet;
-    const img = images[baseIndex + slotIdx];
-    if (!img) return;
-    setCropModal({
-      open: true,
-      slotIdx,
-      src: img.originalSrc,
-      initialCrop: img.crop,
-    });
-  };
+  // ===== Build UploadedImage from PdfPageImage (auto-rotate + cover-crop) =====
+  const makeUploadedFromPage = useCallback(
+    async (page: PdfPageImage): Promise<UploadedImage> => {
+      const slotW = image.width;
+      const slotH = image.height;
 
-  const handleSlotAddImage = (slotIdx: number, file: File) => {
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const dataUrl = reader.result as string;
-      const orientedSrc = await rotateIfNeeded(
-        dataUrl,
-        image.width,
-        image.height,
-        300
-      );
-
+      const orientedSrc = await rotateIfNeeded(page.dataUrl, slotW, slotH, 300);
       const { dataUrl: autoUrl, crop } = await autoCoverCrop(
         orientedSrc,
-        { width: image.width, height: image.height },
+        { width: slotW, height: slotH },
         300,
         { type: "image/png" },
         image.margin
       );
 
-      const newImage: UploadedImage = {
+      return {
         originalSrc: orientedSrc,
         src: autoUrl,
-        name: file.name,
-        file,
+        name: `PDF page ${page.pageNumber}.png`,
+        file: undefined,
         crop,
+        sourceFileId: page.sourceFileId,
+        sourcePageNumber: page.sourcePageNumber,
       };
+    },
+    [image.height, image.margin, image.width]
+  );
 
-      setImages((prev) => {
-        const baseIndex = currentSheet * slotsPerSheet;
-        const next = [...prev];
-        while (next.length < baseIndex + slotsPerSheet) next.push(undefined);
-        next[baseIndex + slotIdx] = newImage;
-        return next;
-      });
-    };
-    reader.readAsDataURL(file);
-  };
+  const replicatePageToSide = useCallback(
+    async (side: "front" | "back", page: PdfPageImage) => {
+      const ui = await makeUploadedFromPage(page);
 
-  const handleSlotRemoveImage = (slotIdx: number) => {
-    setImages((prev) => {
-      const baseIndex = currentSheet * slotsPerSheet;
-      const next = [...prev];
-      if (next[baseIndex + slotIdx]) next[baseIndex + slotIdx] = undefined;
-      return next;
-    });
-  };
+      const filled: (UploadedImage | undefined)[] = Array(slotsPerSheet)
+        .fill(null)
+        .map(() => ({ ...ui }));
 
-  const handleClearAllUploadedImages = () => {
-    setImages([]);
-    setCurrentSheet(0);
-  };
+      if (side === "front") setImages(filled);
+      else setBackImages(filled);
+    },
+    [makeUploadedFromPage, slotsPerSheet]
+  );
 
+  // ===== Uploader hooks =====
+  const handleAfterConvert = useCallback(
+    async (pages: PdfPageImage[], _fileId: string) => {
+      if (pages.length >= 1) await replicatePageToSide("front", pages[0]);
+      if (duplex && pages.length >= 2)
+        await replicatePageToSide("back", pages[1]);
+    },
+    [duplex, replicatePageToSide]
+  );
+
+  // Per-file clear: wipe only slots from that fileId
+  const handleClearFile = useCallback(
+    (fileId: string) => {
+      setImages((prev) =>
+        ensureCapacity(prev).map((itm) =>
+          itm && itm.sourceFileId === fileId ? undefined : itm
+        )
+      );
+      setBackImages((prev) =>
+        ensureCapacity(prev).map((itm) =>
+          itm && itm.sourceFileId === fileId ? undefined : itm
+        )
+      );
+    },
+    [ensureCapacity]
+  );
+
+  // Manual Apply buttons
+  const handleApplyFront = useCallback(
+    async (page: PdfPageImage | null) => {
+      if (!page) return;
+      await replicatePageToSide("front", page);
+    },
+    [replicatePageToSide]
+  );
+  const handleApplyBack = useCallback(
+    async (page: PdfPageImage | null) => {
+      if (!page) return;
+      await replicatePageToSide("back", page);
+    },
+    [replicatePageToSide]
+  );
+
+  // ===== Rotate per sheet (90°) with cover-crop =====
+  const rotateSheet = useCallback(
+    async (side: "front" | "back") => {
+      const srcArr = side === "front" ? images : backImages;
+      const rotated = await Promise.all(
+        ensureCapacity(srcArr).map(async (itm) => {
+          if (!itm) return undefined;
+          const rotatedSrc = await rotateDataUrl90(itm.originalSrc);
+          const { dataUrl: autoUrl, crop } = await autoCoverCrop(
+            rotatedSrc,
+            { width: image.width, height: image.height },
+            300,
+            { type: "image/png" },
+            image.margin
+          );
+          return {
+            ...itm,
+            originalSrc: rotatedSrc,
+            src: autoUrl,
+            crop,
+          };
+        })
+      );
+      if (side === "front") setImages(rotated);
+      else setBackImages(rotated);
+    },
+    [
+      backImages,
+      ensureCapacity,
+      image.height,
+      image.margin,
+      image.width,
+      images,
+    ]
+  );
+
+  // ===== Clear controls =====
+  const clearFront = useCallback(() => {
+    setImages(Array(slotsPerSheet).fill(undefined));
+  }, [slotsPerSheet]);
+
+  const clearBack = useCallback(() => {
+    setBackImages(Array(slotsPerSheet).fill(undefined));
+  }, [slotsPerSheet]);
+
+  const clearBoth = useCallback(() => {
+    setImages(Array(slotsPerSheet).fill(undefined));
+    setBackImages(Array(slotsPerSheet).fill(undefined));
+  }, [slotsPerSheet]);
+
+  // ===== Export (front only for now) =====
   const buildCurrentPdfBytes = async () => {
+    const sheets = [ensureCapacity(images)];
     const pdfBytes = await exportImpositionPdf({
       paper,
       image,
@@ -147,7 +231,7 @@ export default function ItemsHandler() {
       layout,
       customerName: meta.customerName,
       description: meta.description,
-      displayMeta: displayMeta,
+      displayMeta,
       date: meta.date,
       cutMarkLengthMm: 6,
       cutMarkThicknessPt: 0.7,
@@ -157,7 +241,7 @@ export default function ItemsHandler() {
   };
 
   const handleExportPdf = () => {
-    if (!hasAnyImage) return; // guard
+    if (!hasAnyImage) return;
     return runWithLoading(async () => {
       const pdfBytes = await buildCurrentPdfBytes();
       const blob = new Blob([pdfBytes], { type: "application/pdf" });
@@ -166,28 +250,23 @@ export default function ItemsHandler() {
     });
   };
 
-  const handleAddToExportList = () => {
-    if (!hasAnyImage) return; // guard
-    return runWithLoading(async () => {
+  const handleAddToExportList = () =>
+    runWithLoading(async () => {
+      if (!hasAnyFront) return;
       const pdfBytes = await buildCurrentPdfBytes();
-
       const { PDFDocument } = await import("pdf-lib");
       const doc = await PDFDocument.load(pdfBytes);
       const pageCount = doc.getPageCount();
-
       const name = meta.customerName?.trim() || `Job ${queueItems.length + 1}`;
       const blob = new Blob([pdfBytes], { type: "application/pdf" });
-
       await addToQueue(name, pageCount, blob);
       setIsQueueOpen(true);
     });
-  };
 
   const handleExportAll = () =>
     runWithLoading(async () => {
       const merged = await exportAllQueued();
       if (!merged) return;
-
       const blob = new Blob([merged], { type: "application/pdf" });
       const url = URL.createObjectURL(blob);
       window.open(url, "_blank");
@@ -205,18 +284,37 @@ export default function ItemsHandler() {
 
   return (
     <div className="rethink-items rethink-container">
+      {/* PDF uploader (multi-file, per-file clear, auto-apply) */}
       <PdfUpload
         maxSizeMB={50}
-        onSelect={(file) => {
-          // alert("done");
-        }}
+        renderScale={2}
+        previewMaxPages={12}
+        duplex={duplex}
+        onSelect={() => {}}
+        onAfterConvert={handleAfterConvert}
+        onClearFile={handleClearFile}
+        onApplyFront={handleApplyFront}
+        onApplyBack={handleApplyBack}
       />
+
+      {/* Toolbar: keep queue + export; global Clear Both lives here */}
       <div className="rethink-toolbar">
         <div className="rethink-toolbar__left">
-          <div className="rethink-status-line">Queued: {queueItems.length}</div>
+          <div className="rethink-status-line">
+            Slots: {slotsPerSheet} · {paper.width}×{paper.height}mm · Gap{" "}
+            {paper.gap.horizontal}/{paper.gap.vertical}mm · Margin{" "}
+            {paper.margin.top}/{paper.margin.right}/{paper.margin.bottom}/
+            {paper.margin.left}mm {duplex ? "· Duplex" : ""}
+          </div>
         </div>
-
         <div className="rethink-toolbar__right">
+          <button
+            className="rethink-btn rethink-btn--sm"
+            onClick={clearBoth}
+            title="Clear both sheets"
+          >
+            Clear Both
+          </button>
           <button
             className="rethink-btn rethink-btn--outline rethink-btn--sm"
             onClick={() => setIsQueueOpen((v) => !v)}
@@ -228,11 +326,11 @@ export default function ItemsHandler() {
           <button
             className="rethink-btn rethink-btn--outline rethink-btn--md"
             onClick={handleAddToExportList}
-            disabled={!hasAnyImage}
+            disabled={!hasAnyFront}
             title={
-              hasAnyImage
+              hasAnyFront
                 ? "Generate current PDF and add to export list"
-                : "Add at least one image to enable"
+                : "Add at least one front image to enable"
             }
           >
             Add to Export List
@@ -243,7 +341,7 @@ export default function ItemsHandler() {
             disabled={!hasAnyImage}
             title={
               hasAnyImage
-                ? "Export current job (all sheets)"
+                ? "Export current job"
                 : "Add at least one image to enable"
             }
           >
@@ -260,20 +358,27 @@ export default function ItemsHandler() {
         </div>
       </div>
 
-      <div className="rethink-paginator-row">
-        <SheetPaginator
-          totalSheets={sheets.length}
-          currentSheet={currentSheet}
-          onChange={setCurrentSheet}
-        />
-      </div>
-
+      {/* FRONT */}
       <div className="rethink-paper">
-        <div className="rethink-paper__chip">
-          {layout.cols}×{layout.rows} · {paper.width}×{paper.height}mm · Gap{" "}
-          {paper.gap.horizontal}/{paper.gap.vertical}mm · Margin{" "}
-          {paper.margin.top}/{paper.margin.right}/{paper.margin.bottom}/
-          {paper.margin.left}mm
+        <div className="rethink-paper__head">
+          <div className="rethink-paper__chip">Front side</div>
+          <div className="rethink-paper__actions">
+            <button
+              className="rethink-btn rethink-btn--sm"
+              onClick={() => rotateSheet("front")}
+              disabled={!hasAnyFront}
+              title="Rotate front sheet 90°"
+            >
+              Rotate Front
+            </button>
+            <button
+              className="rethink-btn rethink-btn--sm"
+              onClick={clearFront}
+              title="Clear front sheet"
+            >
+              Clear Front
+            </button>
+          </div>
         </div>
 
         <PaperPreview
@@ -281,37 +386,44 @@ export default function ItemsHandler() {
           image={image}
           customerName={meta.customerName}
           description={meta.description}
-          images={sheets[currentSheet] || []}
+          images={ensureCapacity(images)}
           date={meta.date}
-          onSlotRemoveImage={handleSlotRemoveImage}
-          onSlotEditImage={handleSlotEditImage}
         />
       </div>
 
-      {cropModal.open && cropModal.src && (
-        <CropperModal
-          imageData={image}
-          dpi={300}
-          isOpen={cropModal.open}
-          imageSrc={cropModal.src}
-          onClose={() =>
-            setCropModal({ open: false, slotIdx: null, src: null })
-          }
-          onConfirm={({ dataUrl, crop }) => {
-            if (cropModal.slotIdx === null) return;
-            const baseIndex = currentSheet * slotsPerSheet;
-            const next = [...images];
-            const old = next[baseIndex + cropModal.slotIdx];
-            if (!old) return;
-            next[baseIndex + cropModal.slotIdx] = {
-              ...old,
-              src: dataUrl,
-              crop,
-            };
-            setImages(next);
-            setCropModal({ open: false, slotIdx: null, src: null });
-          }}
-        />
+      {/* BACK */}
+      {duplex && (
+        <div className="rethink-paper">
+          <div className="rethink-paper__head">
+            <div className="rethink-paper__chip">Back side</div>
+            <div className="rethink-paper__actions">
+              <button
+                className="rethink-btn rethink-btn--sm"
+                onClick={() => rotateSheet("back")}
+                disabled={!hasAnyBack}
+                title="Rotate back sheet 90°"
+              >
+                Rotate Back
+              </button>
+              <button
+                className="rethink-btn rethink-btn--sm"
+                onClick={clearBack}
+                title="Clear back sheet"
+              >
+                Clear Back
+              </button>
+            </div>
+          </div>
+
+          <PaperPreview
+            paper={paper}
+            image={image}
+            customerName={meta.customerName}
+            description={meta.description}
+            images={ensureCapacity(backImages)}
+            date={meta.date}
+          />
+        </div>
       )}
 
       <ExportQueueDrawer

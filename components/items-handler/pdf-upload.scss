@@ -107,32 +107,40 @@
     border-radius: 6px;
   }
 
-  /* File info row */
   &__info {
-    display: grid;
-    grid-template-columns: 1fr auto auto;
+    display: flex;
     align-items: center;
-    gap: 8px;
+    justify-content: space-between;
+    gap: 12px;
     background: #eef2f7;
-    padding: 8px 10px;
+    padding: 8px 12px;
     border-radius: 10px;
+    flex-wrap: wrap; /* prevents overflow on small screens */
   }
+
   &__filename {
+    flex: 1; /* take remaining space */
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     color: #0f172a;
     font-weight: 500;
   }
+
   &__filesize {
+    margin-left: auto; /* push size to right */
     color: #475569;
     font-size: 0.85rem;
+    flex-shrink: 0;
   }
 
-  /* Actions row (buttons use .rethink-btn foundation) */
   &__actions {
     display: flex;
     gap: 8px;
-    justify-content: flex-end;
+    flex-shrink: 0;
+  }
+  &__file-head {
+    display: flex;
+    gap: 20px;
   }
 }

@@ -29,8 +29,6 @@ export const PaperPreview: React.FC<Props> = ({
   showMeta = true,
   showLegend = true,
   images,
-  onSlotRemoveImage,
-  onSlotEditImage,
 }) => {
   const PREVIEW_W = 500;
 
@@ -213,35 +211,6 @@ export const PaperPreview: React.FC<Props> = ({
                           <div className="rethink-image-slot__placeholder" />
                         )}
                       </div>
-
-                      {img ? (
-                        <div className="rethink-image-slot__actions">
-                          <button
-                            className="rethink-image-slot__action-btn rethink-image-slot__action-btn--crop"
-                            title="Crop"
-                            aria-label="Crop image"
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onSlotEditImage?.(idx);
-                            }}
-                          >
-                            <Crop strokeWidth={2} />
-                          </button>
-                          <button
-                            className="rethink-image-slot__action-btn rethink-image-slot__action-btn--remove"
-                            title="Remove"
-                            aria-label="Remove image"
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onSlotRemoveImage?.(idx);
-                            }}
-                          >
-                            <X strokeWidth={2} />
-                          </button>
-                        </div>
-                      ) : null}
                     </div>
                   </ImageCell>
                 );

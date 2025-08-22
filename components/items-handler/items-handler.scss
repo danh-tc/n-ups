@@ -39,6 +39,18 @@
 .rethink-paper {
   position: relative;
 
+  &__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+  &__actions {
+    display: inline-flex;
+    gap: 8px;
+  }
+
   &__chip {
     position: absolute;
     top: -24px;

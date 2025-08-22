@@ -64,4 +64,6 @@ export interface UploadedImage {
   name: string;
   file?: File;
   crop?: CropSettings;
+  sourceFileId: string;
+  sourcePageNumber: number;
 }

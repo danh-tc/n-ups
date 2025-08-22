@@ -17,6 +17,7 @@ import ExportQueueDrawer from "./ExportQueueDrawer";
 import { useExportQueueStore } from "@/store/useExportQueueStore";
 import FullScreenBrandedLoader from "../layout/FullScreenLoader";
 import { useLoadingTask } from "@/hooks/useLoadingTask";
+import PdfUpload from "./PdfUpload";
 
 export default function ItemsHandler() {
   const [images, setImages] = useState<(UploadedImage | undefined)[]>([]);
@@ -204,28 +205,14 @@ export default function ItemsHandler() {
 
   return (
     <div className="rethink-items rethink-container">
+      <PdfUpload
+        maxSizeMB={50}
+        onSelect={(file) => {
+          // alert("done");
+        }}
+      />
       <div className="rethink-toolbar">
         <div className="rethink-toolbar__left">
-          <BulkImageUploader
-            onImagesLoaded={(newImgs) => {
-              setImages((prev) => {
-                const merged = [...prev];
-                for (let i = 0; i < newImgs.length; i++) {
-                  const emptyIndex = merged.findIndex((x) => x === undefined);
-                  if (emptyIndex !== -1) merged[emptyIndex] = newImgs[i];
-                  else merged.push(newImgs[i]);
-                }
-                return merged;
-              });
-            }}
-            label="Upload your images"
-            uploadedImages={images}
-            onClearAll={handleClearAllUploadedImages}
-            targetSizeMm={{ width: image.width, height: image.height }}
-            dpi={300}
-            output={{ type: "image/png" }}
-            marginMm={image.margin}
-          />
           <div className="rethink-status-line">Queued: {queueItems.length}</div>
         </div>
 
@@ -296,8 +283,6 @@ export default function ItemsHandler() {
           description={meta.description}
           images={sheets[currentSheet] || []}
           date={meta.date}
-          allowSlotImageUpload
-          onSlotAddImage={handleSlotAddImage}
           onSlotRemoveImage={handleSlotRemoveImage}
           onSlotEditImage={handleSlotEditImage}
         />

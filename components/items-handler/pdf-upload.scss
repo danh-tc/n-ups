@@ -1,0 +1,138 @@
+/* =========================================
+ * Block: rethink-upload (BEM + button foundation)
+ * ========================================= */
+
+.rethink-upload {
+  display: grid;
+  gap: 10px;
+
+  /* Drop zone */
+  &__drop {
+    position: relative;
+    border: 2px dashed #94a3b8; /* slate-400 */
+    border-radius: 12px;
+    padding: 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease;
+    background: #f8fafc; /* slate-50 */
+
+    &--over {
+      border-color: #2563eb; /* blue-600 */
+      background: #eff6ff; /* blue-50 */
+    }
+    &--disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+  }
+
+  /* Drop content */
+  &__content {
+    display: grid;
+    gap: 4px;
+  }
+  &__title {
+    font-size: 0.95rem;
+    color: #0f172a;
+  }
+  &__hint {
+    font-size: 0.85rem;
+    color: #475569;
+  }
+  &__sub {
+    font-size: 0.8rem;
+    color: #64748b;
+  }
+
+  /* Invisible input */
+  &__input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: inherit;
+  }
+
+  /* Error */
+  &__error {
+    margin: 0;
+    color: #b91c1c; /* red-700 */
+    font-size: 0.85rem;
+  }
+
+  /* Thumbnails grid */
+  &__preview {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+    gap: 8px;
+  }
+
+  /* Thumbnail button */
+  &__thumb {
+    position: relative;
+    background: #e5e7eb; /* slate-200 */
+    border-radius: 8px;
+    padding: 6px;
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    transition: transform 0.12s ease, background 0.12s ease;
+    border: none;
+
+    img {
+      display: block;
+      max-width: 100%;
+      max-height: 120px;
+      height: auto;
+      width: auto;
+      object-fit: contain;
+      border-radius: 4px;
+      background: #fff;
+    }
+
+    &--active {
+      background: #bfdbfe; /* blue-200 */
+      transform: translateY(-1px);
+    }
+  }
+
+  &__thumb-label {
+    position: absolute;
+    left: 6px;
+    bottom: 6px;
+    padding: 2px 6px;
+    font-size: 11px;
+    background: #0f172a;
+    color: #fff;
+    border-radius: 6px;
+  }
+
+  /* File info row */
+  &__info {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    align-items: center;
+    gap: 8px;
+    background: #eef2f7;
+    padding: 8px 10px;
+    border-radius: 10px;
+  }
+  &__filename {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #0f172a;
+    font-weight: 500;
+  }
+  &__filesize {
+    color: #475569;
+    font-size: 0.85rem;
+  }
+
+  /* Actions row (buttons use .rethink-btn foundation) */
+  &__actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+  }
+}

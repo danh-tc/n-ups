@@ -10,7 +10,6 @@ import React, {
 } from "react";
 import "./pdf-upload.scss";
 
-/* pdf.js */
 import { getDocument, type PDFDocumentProxy } from "pdfjs-dist";
 import "pdfjs-dist/build/pdf.worker.mjs";
 

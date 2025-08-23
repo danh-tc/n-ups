@@ -75,13 +75,7 @@ export default function LayoutConfigurator() {
             </div>
 
             <div className="rethink-layout-configurator__card rethink-layout-configurator__summary">
-              <SummaryTable
-                paper={paper}
-                image={image}
-                layout={layout}
-                gap={paper.gap}
-                margin={paper.margin}
-              />
+              <SummaryTable />
             </div>
           </div>
         </aside>

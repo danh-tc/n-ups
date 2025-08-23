@@ -10,44 +10,51 @@ import React, {
 } from "react";
 import "./pdf-upload.scss";
 
-import { getDocument, type PDFDocumentProxy } from "pdfjs-dist";
-import "pdfjs-dist/build/pdf.worker.mjs";
+/* ---------- Types only (no runtime import) ---------- */
+type PDFDocumentProxy =
+  import("pdfjs-dist/types/src/display/api").PDFDocumentProxy;
+
+/* ---------- Guarded loader (client-only) ---------- */
+let pdfjsModPromise: Promise<typeof import("pdfjs-dist")> | null = null;
+
+async function loadPdfjs(): Promise<typeof import("pdfjs-dist")> {
+  if (pdfjsModPromise) return pdfjsModPromise;
+  pdfjsModPromise = (async () => {
+    if (typeof window === "undefined") {
+      throw new Error("PDF.js can only load in the browser");
+    }
+    const mod = await import("pdfjs-dist");
+    // Worker import has no type defs by default; keep it guarded + one-line expect.
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-expect-error no declaration file for worker mjs
+    await import("pdfjs-dist/build/pdf.worker.mjs");
+    return mod;
+  })();
+  return pdfjsModPromise;
+}
 
 /** Page thumbnail with provenance (for per-file clear / mapping) */
 export interface PdfPageImage {
   pageNumber: number; // 1-based
-  width: string | number; // keep width/height accessible (string acceptable for CSS sizing)
+  width: string | number; // string is ok for CSS sizing
   height: string | number;
   dataUrl: string; // PNG data URL
-  /** provenance */
   sourceFileId: string;
-  sourcePageNumber: number; // equals pageNumber
+  sourcePageNumber: number;
 }
 
 export interface PdfUploadProps {
-  /** Compatibility callback — fired when any file is added/cleared. */
   onSelect: (file: File | null) => void;
-
-  /** Emitted when a page is chosen to apply */
   onApplyFront?: (page: PdfPageImage | null) => void;
   onApplyBack?: (page: PdfPageImage | null) => void;
-
-  /** Parent hook after a PDF converts; use it to auto-apply p1→front, p2→back, etc. */
   onAfterConvert?: (pages: PdfPageImage[], fileId: string) => void;
-
-  /** Parent hook to clear slots placed by a specific file */
   onClearFile?: (fileId: string) => void;
-
   maxSizeMB?: number;
   disabled?: boolean;
   className?: string;
   initialFile?: File | null;
-  /** 1..4 render quality (default 2) */
-  renderScale?: number;
-  /** optional preview limit; global cap still enforced */
+  renderScale?: number; // 1..4 (default 2)
   previewMaxPages?: number;
-
-  /** for tooltip/enable of Apply Back */
   duplex?: boolean;
 }
 
@@ -79,8 +86,10 @@ async function renderPdfToImages(
   numPages: number;
 }> {
   const clamped = clamp(scale, 1, 4);
+
+  const pdfjs = await loadPdfjs();
   const data = new Uint8Array(await file.arrayBuffer());
-  const pdf: PDFDocumentProxy = await getDocument({ data }).promise;
+  const pdf: PDFDocumentProxy = await pdfjs.getDocument({ data }).promise;
 
   const numPages = pdf.numPages;
   const cap = previewMaxPages ? Math.min(previewMaxPages, numPages) : numPages;
@@ -94,23 +103,22 @@ async function renderPdfToImages(
 
   for (let i = 1; i <= cap; i += 1) {
     const page = await pdf.getPage(i);
-    const viewport = page.getViewport({ scale: clamped });
 
+    const cssViewport = page.getViewport({ scale: clamped });
     const dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 3));
     const renderViewport = page.getViewport({ scale: clamped * dpr });
 
     const canvas: HTMLCanvasElement = document.createElement("canvas");
     canvas.width = Math.floor(renderViewport.width);
     canvas.height = Math.floor(renderViewport.height);
-    canvas.style.width = `${Math.floor(viewport.width)}px`;
-    canvas.style.height = `${Math.floor(viewport.height)}px`;
+    canvas.style.width = `${Math.floor(cssViewport.width)}px`;
+    canvas.style.height = `${Math.floor(cssViewport.height)}px`;
 
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("Failed to get 2D context");
 
-    // Satisfy type variants: provide both canvas + canvasContext
     await page.render({
-      canvas,
+      canvas, // required by TS RenderParameters
       canvasContext: ctx,
       viewport: renderViewport,
       background: "transparent",
@@ -162,10 +170,7 @@ const PdfUpload: React.FC<PdfUploadProps> = ({
   const [isOver, setIsOver] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  // multiple PDFs; GLOBAL page limit across all files enforced
   const [uploaded, setUploaded] = useState<UploadedPdf[]>([]);
-
-  // selection state for thumbnails
   const [selected, setSelected] = useState<{
     fileId: string | null;
     pageIdx: number;
@@ -208,7 +213,6 @@ const PdfUpload: React.FC<PdfUploadProps> = ({
     [maxSizeMB]
   );
 
-  /** Render and add one PDF, enforcing the GLOBAL page cap (≤2 across all files). */
   const importOneFile = useCallback(
     async (file: File) => {
       setBusy(true);
@@ -219,12 +223,10 @@ const PdfUpload: React.FC<PdfUploadProps> = ({
           previewMaxPages
         );
 
-        // Enforce global cap BEFORE accepting the file
         const newTotal = totalPages + numPages;
         if (newTotal > GLOBAL_PAGE_CAP) {
           throw new Error(
-            `You can upload up to ${GLOBAL_PAGE_CAP} total pages across all PDFs. ` +
-              `"${file.name}" has ${numPages} page(s), which would exceed the limit (current total: ${totalPages}).`
+            `You can upload up to ${GLOBAL_PAGE_CAP} total pages across all PDFs. "${file.name}" has ${numPages} page(s), which would exceed the limit (current total: ${totalPages}).`
           );
         }
 
@@ -248,7 +250,7 @@ const PdfUpload: React.FC<PdfUploadProps> = ({
         setUploaded((prev) => [...prev, entry]);
         setSelected({ fileId, pageIdx: 0 });
 
-        onSelect(file); // compatibility signal
+        onSelect(file);
         onAfterConvert?.(enriched, fileId);
       } catch (e) {
         // eslint-disable-next-line no-console
@@ -329,7 +331,6 @@ const PdfUpload: React.FC<PdfUploadProps> = ({
     []
   );
 
-  // Optional initial single file
   useEffect(() => {
     if (initialFile) {
       void importOneFile(initialFile);

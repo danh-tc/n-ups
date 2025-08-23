@@ -14,9 +14,8 @@ import ExportQueueDrawer from "./ExportQueueDrawer";
 import { useExportQueueStore } from "@/store/useExportQueueStore";
 import FullScreenBrandedLoader from "../layout/FullScreenLoader";
 import { useLoadingTask } from "@/hooks/useLoadingTask";
-import { type PdfPageImage } from "./PdfUpload";
+import PdfUpload, { type PdfPageImage } from "./PdfUpload";
 import { JSX } from "react/jsx-runtime";
-import dynamic from "next/dynamic";
 
 /** Rotate a dataURL 90deg clockwise */
 async function rotateDataUrl90(dataUrl: string): Promise<string> {
@@ -38,10 +37,6 @@ async function rotateDataUrl90(dataUrl: string): Promise<string> {
 }
 
 export default function ItemsHandler(): JSX.Element | null {
-  const PdfUpload = dynamic(() => import("./PdfUpload"), {
-    ssr: false,
-  });
-
   // Front / Back sheets
   const [images, setImages] = useState<(UploadedImage | undefined)[]>([]);
   const [backImages, setBackImages] = useState<(UploadedImage | undefined)[]>(

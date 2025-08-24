@@ -3,7 +3,6 @@
 import React, { useMemo } from "react";
 import { ImageCell } from "./ImageCell";
 import "./paper-preview.scss";
-import { Crop, X } from "lucide-react";
 import type { ImageConfig, PaperConfig, UploadedImage } from "@/types/types";
 import { computeLayout, clamp0 } from "@/lib/imposition";
 
@@ -16,8 +15,8 @@ interface Props {
   showMeta?: boolean;
   showLegend?: boolean;
   images?: (UploadedImage | undefined)[];
-  onSlotRemoveImage?: (slotIdx: number) => void;
-  onSlotEditImage?: (slotIdx: number) => void;
+  onSlotRemoveImage?: (slotIdx: number) => void; // (unused)
+  onSlotEditImage?: (slotIdx: number) => void; // (unused)
 }
 
 export const PaperPreview: React.FC<Props> = ({
@@ -32,6 +31,9 @@ export const PaperPreview: React.FC<Props> = ({
 }) => {
   const PREVIEW_W = 500;
 
+  // Any image present?
+  const hasAnyImg = useMemo(() => (images ?? []).some(Boolean), [images]);
+
   // Screen-only scaling
   const { previewWidth, previewHeight, scale } = useMemo(() => {
     const w = clamp0(paper.width);
@@ -42,7 +44,7 @@ export const PaperPreview: React.FC<Props> = ({
     return { previewWidth: pw, previewHeight: pw * (h / w), scale: pw / w };
   }, [paper.width, paper.height]);
 
-  // Layout (printedW/H already account for margins + cut marks)
+  // Layout
   const { rows, cols, tagW, tagH, printedW, printedH } = useMemo(
     () => computeLayout(paper, image),
     [paper, image]
@@ -82,7 +84,7 @@ export const PaperPreview: React.FC<Props> = ({
     [printedW, printedH, paperMargin.left, paperMargin.top, cutPx, scale]
   );
 
-  // Cell (footprint) size in px: image + gutter(image.margin)
+  // Cell sizes (px)
   const cellWidth = tagW * scale;
   const cellHeight = tagH * scale;
 
@@ -103,19 +105,19 @@ export const PaperPreview: React.FC<Props> = ({
     ]
   );
 
-  // Inset size = image size (always visible)
+  // Inset size (px)
   const insetW = Math.max(0, cellWidth - imgMarginPx.left - imgMarginPx.right);
   const insetH = Math.max(0, cellHeight - imgMarginPx.top - imgMarginPx.bottom);
 
-  // Grid overall size (no CSS gap; gutter lives inside footprint)
+  // Grid overall size
   const gridW = cols > 0 ? cols * cellWidth : 0;
   const gridH = rows > 0 ? rows * cellHeight : 0;
 
-  // Place grid: horizontally centered, vertically bottom-aligned to printed area
+  // Place grid
   const gridLeft = printedBox.left + (printedBox.width - gridW) / 2;
   const gridTop = printedBox.top + printedBox.height - gridH;
 
-  // Margin fill size (for the yellow band)
+  // Margin fill size
   const usableW = Math.max(
     0,
     previewWidth - paperMargin.left - paperMargin.right
@@ -144,7 +146,7 @@ export const PaperPreview: React.FC<Props> = ({
           }}
         />
 
-        {/* Printed area */}
+        {/* Printed area — turns white when any slot has an image */}
         <div
           className="rethink-paper-preview__printed"
           style={{
@@ -152,10 +154,11 @@ export const PaperPreview: React.FC<Props> = ({
             left: printedBox.left,
             width: printedBox.width,
             height: printedBox.height,
+            background: hasAnyImg ? "#ffffff" : undefined, // ← key change
           }}
         />
 
-        {/* Grid (footprints + insets) */}
+        {/* Grid */}
         {showGrid ? (
           <div
             className="rethink-paper-preview__grid"
@@ -173,6 +176,16 @@ export const PaperPreview: React.FC<Props> = ({
               Array.from({ length: cols }).map((__, c) => {
                 const idx = r * cols + c;
                 const img = images?.[idx];
+                const hasImg = !!img;
+
+                const insetStyle: React.CSSProperties = hasImg
+                  ? { top: 0, left: 0, width: cellWidth, height: cellHeight }
+                  : {
+                      top: imgMarginPx.top,
+                      left: imgMarginPx.left,
+                      width: insetW,
+                      height: insetH,
+                    };
 
                 return (
                   <ImageCell
@@ -181,7 +194,9 @@ export const PaperPreview: React.FC<Props> = ({
                     height={cellHeight}
                   >
                     <div
-                      className="rethink-image-slot"
+                      className={`rethink-image-slot ${
+                        hasImg ? "rethink-image-slot--filled" : ""
+                      }`}
                       style={
                         {
                           "--cell-w": `${cellWidth}px`,
@@ -191,21 +206,21 @@ export const PaperPreview: React.FC<Props> = ({
                     >
                       <div
                         className="rethink-image-slot__inset"
-                        style={{
-                          top: imgMarginPx.top,
-                          left: imgMarginPx.left,
-                          width: insetW,
-                          height: insetH,
-                        }}
+                        style={insetStyle}
                       >
-                        {img ? (
+                        {hasImg ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img
-                            src={img.src}
-                            alt={img.name ?? "uploaded image"}
+                            src={img!.src}
+                            alt={img!.name ?? "uploaded image"}
                             className="rethink-image-slot__img"
                             decoding="async"
                             loading="lazy"
+                            style={{
+                              width: "100%",
+                              height: "100%",
+                              objectFit: "cover",
+                            }}
                           />
                         ) : (
                           <div className="rethink-image-slot__placeholder" />
@@ -242,7 +257,13 @@ export const PaperPreview: React.FC<Props> = ({
               <span className="legend-label">Margins</span>
             </div>
             <div className="legend-item">
-              <span className="legend-swatch legend-swatch--printed" />
+              <span
+                className="legend-swatch legend-swatch--printed"
+                style={{
+                  background: hasAnyImg ? "#ffffff" : undefined,
+                  outline: hasAnyImg ? "1px solid #ccc" : undefined,
+                }}
+              />
               <span className="legend-label">Printed area</span>
             </div>
             <div className="legend-item">

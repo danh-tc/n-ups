@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { calculateGridLayout } from "@/lib/layoutCalculator";
 import { PaperPreview } from "./PaperPreview";
 import { SummaryTable } from "./SummaryTable";
 import "./layout-configurator.scss";
@@ -21,7 +20,6 @@ export default function LayoutConfigurator() {
   const displayMeta = useImpositionStore((s) => s.displayMeta);
   const setDisplayMeta = useImpositionStore((s) => s.setDisplayMeta);
 
-  const layout = calculateGridLayout(paper, image);
   const hydrated = useHydrated();
   if (!hydrated) return null;
 

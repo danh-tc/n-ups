@@ -3,7 +3,7 @@
 import "./items-handler.scss";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { PaperPreview } from "../layout/PaperPreview";
-import { calculateGridLayout } from "@/lib/layoutCalculator";
+import { computeLayout } from "@/lib/imposition";
 import { useImpositionStore } from "@/store/useImpositionStore";
 import { useHydrated } from "@/hooks/useImpositionHydrated";
 import { UploadedImage } from "@/types/types";
@@ -15,7 +15,7 @@ import { useExportQueueStore } from "@/store/useExportQueueStore";
 import FullScreenBrandedLoader from "../layout/FullScreenLoader";
 import { useLoadingTask } from "@/hooks/useLoadingTask";
 import PdfUpload, { type PdfPageImage } from "./PdfUpload";
-import { JSX } from "react/jsx-runtime";
+import type { JSX } from "react";
 
 /** Rotate a dataURL 90deg clockwise */
 async function rotateDataUrl90(dataUrl: string): Promise<string> {
@@ -51,7 +51,8 @@ export default function ItemsHandler(): JSX.Element | null {
 
   const { isLoading, runWithLoading } = useLoadingTask();
 
-  const layout = calculateGridLayout(paper, image);
+  // Single source of truth for layout (accounts for margins + cut marks)
+  const layout = useMemo(() => computeLayout(paper, image), [paper, image]);
   const slotsPerSheet = layout.rows * layout.cols;
 
   const ensureCapacity = useCallback(
@@ -72,7 +73,7 @@ export default function ItemsHandler(): JSX.Element | null {
   const hasAnyBack = useMemo(() => backImages.some(Boolean), [backImages]);
   const hasAnyImage = hasAnyFront || hasAnyBack;
 
-  // ===== Export Queue (unchanged) =====
+  // ===== Export Queue =====
   const queueItems = useExportQueueStore((s) => s.items);
   const hydrateQueue = useExportQueueStore((s) => s.hydrate);
   const addToQueue = useExportQueueStore((s) => s.add);
@@ -93,7 +94,7 @@ export default function ItemsHandler(): JSX.Element | null {
       const slotH = image.height;
 
       const orientedSrc = await rotateIfNeeded(page.dataUrl, slotW, slotH, 300);
-      const { dataUrl: autoUrl, crop } = await autoCoverCrop(
+      const { dataUrl: autoUrl } = await autoCoverCrop(
         orientedSrc,
         { width: slotW, height: slotH },
         300,
@@ -106,7 +107,6 @@ export default function ItemsHandler(): JSX.Element | null {
         src: autoUrl,
         name: `PDF page ${page.pageNumber}.png`,
         file: undefined,
-        crop,
         sourceFileId: page.sourceFileId,
         sourcePageNumber: page.sourcePageNumber,
       };
@@ -117,11 +117,9 @@ export default function ItemsHandler(): JSX.Element | null {
   const replicatePageToSide = useCallback(
     async (side: "front" | "back", page: PdfPageImage) => {
       const ui = await makeUploadedFromPage(page);
-
       const filled: (UploadedImage | undefined)[] = Array(slotsPerSheet)
         .fill(null)
         .map(() => ({ ...ui }));
-
       if (side === "front") setImages(filled);
       else setBackImages(filled);
     },
@@ -163,6 +161,7 @@ export default function ItemsHandler(): JSX.Element | null {
     },
     [replicatePageToSide]
   );
+
   const handleApplyBack = useCallback(
     async (page: PdfPageImage | null) => {
       if (!page) return;
@@ -186,12 +185,7 @@ export default function ItemsHandler(): JSX.Element | null {
             { type: "image/png" },
             image.margin
           );
-          return {
-            ...itm,
-            originalSrc: rotatedSrc,
-            src: autoUrl,
-            crop,
-          };
+          return { ...itm, originalSrc: rotatedSrc, src: autoUrl, crop };
         })
       );
       if (side === "front") setImages(rotated);
@@ -228,7 +222,7 @@ export default function ItemsHandler(): JSX.Element | null {
       paper,
       image,
       sheets,
-      layout,
+      layout: { rows: layout.rows, cols: layout.cols }, // narrow type
       customerName: meta.customerName,
       description: meta.description,
       displayMeta,
@@ -297,7 +291,7 @@ export default function ItemsHandler(): JSX.Element | null {
         onApplyBack={handleApplyBack}
       />
 
-      {/* Toolbar: keep queue + export; global Clear Both lives here */}
+      {/* Toolbar */}
       <div className="rethink-toolbar">
         <div className="rethink-toolbar__left">
           <div className="rethink-status-line">

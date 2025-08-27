@@ -1,15 +1,16 @@
-import { getTodayString } from "@/lib/utils";
-import { ImageConfig, PaperConfig } from "@/types/types";
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { persist, createJSONStorage } from "zustand/middleware";
+import type {
+  PaperConfig,
+  ImageConfig,
+  MetaInfo,
+  UploadedImage,
+} from "@/types/types";
 
-export type MetaInfo = {
-  customerName: string;
-  date: string;
-  description: string;
-};
+type Slot = UploadedImage | undefined;
 
 interface ImpositionState {
+  // Core config
   paper: PaperConfig;
   setPaper: (paper: PaperConfig) => void;
 
@@ -19,9 +20,35 @@ interface ImpositionState {
   meta: MetaInfo;
   setMeta: (meta: MetaInfo) => void;
 
-  displayMeta?: boolean;
-  setDisplayMeta: (displayMeta: boolean) => void;
+  displayMeta: boolean;
+  setDisplayMeta: (display: boolean) => void;
+
+  // Slots (persisted)
+  frontSlots: Slot[];
+  backSlots: Slot[];
+
+  setFrontSlots: (slots: Slot[]) => void;
+  setBackSlots: (slots: Slot[]) => void;
+
+  ensureCapacity: (slotsPerSheet: number) => void;
+  clearFront: () => void;
+  clearBack: () => void;
+  clearBoth: () => void;
+  clearByFileId: (fileId: string) => void;
+
+  rotateFrontBy: (deg: number) => void; // sheet-wide rotation
+  rotateBackBy: (deg: number) => void; // sheet-wide rotation
 }
+
+// Defaults
+const defaultPaper: PaperConfig = {
+  width: 210,
+  height: 297,
+  duplex: false,
+  margin: { top: 5, right: 5, bottom: 5, left: 5 },
+  gap: { horizontal: 2, vertical: 2 },
+  cutMarkLengthMm: 6,
+};
 
 const defaultImage: ImageConfig = {
   width: 57,
@@ -29,74 +56,97 @@ const defaultImage: ImageConfig = {
   margin: { top: 0, right: 0, bottom: 0, left: 0 },
 };
 
-const defaultPaper: PaperConfig = {
-  width: 297,
-  height: 210,
-  margin: { top: 0, right: 0, bottom: 0, left: 0 },
-  gap: { horizontal: 0, vertical: 0 },
-  duplex: false,
-  cutMarkLengthMm: 5,
+const defaultMeta: MetaInfo = {
+  customerName: "",
+  description: "",
+  date: new Date().toISOString().slice(0, 10),
+};
+
+const normDeg = (d: number): number => ((d % 360) + 360) % 360;
+
+const padTo = (arr: Slot[], n: number): Slot[] => {
+  if (n <= 0) return [];
+  if (arr.length === n) return arr;
+  if (arr.length > n) return arr.slice(0, n);
+  return [...arr, ...Array<Slot>(n - arr.length).fill(undefined)];
 };
 
 export const useImpositionStore = create<ImpositionState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
+      // Core
       paper: defaultPaper,
-      setPaper: (paper) => {
-        const merged: PaperConfig = {
-          ...defaultPaper,
-          ...paper,
-          margin: { ...defaultPaper.margin, ...(paper.margin ?? {}) },
-          gap: { ...defaultPaper.gap, ...(paper.gap ?? {}) },
-          duplex:
-            paper.duplex !== undefined ? paper.duplex : defaultPaper.duplex,
-          cutMarkLengthMm:
-            paper.cutMarkLengthMm !== undefined
-              ? paper.cutMarkLengthMm
-              : defaultPaper.cutMarkLengthMm,
-        };
-        set({ paper: merged });
-      },
+      setPaper: (paper) => set({ paper }),
 
       image: defaultImage,
       setImage: (image) => set({ image }),
 
-      meta: { customerName: "", date: getTodayString(), description: "" },
+      meta: defaultMeta,
       setMeta: (meta) => set({ meta }),
 
       displayMeta: true,
-      setDisplayMeta: (displayMeta) => set({ displayMeta }),
+      setDisplayMeta: (display) => set({ displayMeta: display }),
+
+      // Slots
+      frontSlots: [],
+      backSlots: [],
+
+      setFrontSlots: (slots) => set({ frontSlots: slots }),
+      setBackSlots: (slots) => set({ backSlots: slots }),
+
+      ensureCapacity: (slotsPerSheet) =>
+        set((s) => ({
+          frontSlots: padTo(s.frontSlots, slotsPerSheet),
+          backSlots: padTo(s.backSlots, slotsPerSheet),
+        })),
+
+      clearFront: () =>
+        set((s) => ({
+          frontSlots: Array<Slot>(s.frontSlots.length).fill(undefined),
+        })),
+
+      clearBack: () =>
+        set((s) => ({
+          backSlots: Array<Slot>(s.backSlots.length).fill(undefined),
+        })),
+
+      clearBoth: () =>
+        set((s) => ({
+          frontSlots: Array<Slot>(s.frontSlots.length).fill(undefined),
+          backSlots: Array<Slot>(s.backSlots.length).fill(undefined),
+        })),
+
+      clearByFileId: (fileId) =>
+        set((s) => ({
+          frontSlots: s.frontSlots.map((it) =>
+            it?.sourceFileId === fileId ? undefined : it
+          ),
+          backSlots: s.backSlots.map((it) =>
+            it?.sourceFileId === fileId ? undefined : it
+          ),
+        })),
+
+      rotateFrontBy: (deg) =>
+        set((s) => ({
+          frontSlots: s.frontSlots.map((it) =>
+            it
+              ? { ...it, rotationDeg: normDeg((it.rotationDeg ?? 0) + deg) }
+              : it
+          ),
+        })),
+
+      rotateBackBy: (deg) =>
+        set((s) => ({
+          backSlots: s.backSlots.map((it) =>
+            it
+              ? { ...it, rotationDeg: normDeg((it.rotationDeg ?? 0) + deg) }
+              : it
+          ),
+        })),
     }),
     {
-      name: "imposition-storage",
-      version: 2,
-      migrate: (persistedState: unknown, version: number) => {
-        if (!persistedState || typeof persistedState !== "object") {
-          return persistedState;
-        }
-
-        const state = persistedState as {
-          paper?: Partial<PaperConfig>;
-          image?: ImageConfig;
-          meta?: MetaInfo;
-          displayMeta?: boolean;
-        };
-
-        if (version < 2) {
-          const paper = state.paper ?? {};
-          state.paper = {
-            ...defaultPaper,
-            ...paper,
-            margin: { ...defaultPaper.margin, ...(paper.margin ?? {}) },
-            gap: { ...defaultPaper.gap, ...(paper.gap ?? {}) },
-            duplex: paper.duplex ?? defaultPaper.duplex,
-            cutMarkLengthMm:
-              paper.cutMarkLengthMm ?? defaultPaper.cutMarkLengthMm,
-          };
-        }
-
-        return state;
-      },
+      name: "imposition-store-v2",
+      storage: createJSONStorage(() => localStorage),
     }
   )
 );

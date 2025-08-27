@@ -1,23 +1,26 @@
 "use client";
 
 import "./items-handler.scss";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type JSX,
+} from "react";
 import { PaperPreview } from "../layout/PaperPreview";
 import { computeLayout } from "@/lib/imposition";
 import { useImpositionStore } from "@/store/useImpositionStore";
 import { useHydrated } from "@/hooks/useImpositionHydrated";
-import { UploadedImage } from "@/types/types";
+import type { UploadedImage } from "@/types/types";
 import { exportImpositionPdf } from "@/lib/exportImpositionPdf";
-import { autoCoverCrop } from "@/lib/autoCoverCrop";
-import { rotateIfNeeded } from "@/lib/rotateIfNeeded";
 import ExportQueueDrawer from "./ExportQueueDrawer";
 import { useExportQueueStore } from "@/store/useExportQueueStore";
 import FullScreenBrandedLoader from "../layout/FullScreenLoader";
 import { useLoadingTask } from "@/hooks/useLoadingTask";
 import PdfUpload, { type PdfPageImage } from "./PdfUpload";
-import type { JSX } from "react";
 
-/** Rotate a dataURL 90deg clockwise */
+/** Rotate a dataURL 90deg clockwise (pre-encode to avoid seams) */
 async function rotateDataUrl90(dataUrl: string): Promise<string> {
   const img = new Image();
   await new Promise<void>((res, rej) => {
@@ -37,40 +40,34 @@ async function rotateDataUrl90(dataUrl: string): Promise<string> {
 }
 
 export default function ItemsHandler(): JSX.Element | null {
-  // Front / Back sheets
-  const [images, setImages] = useState<(UploadedImage | undefined)[]>([]);
-  const [backImages, setBackImages] = useState<(UploadedImage | undefined)[]>(
-    []
-  );
-
-  const image = useImpositionStore((s) => s.image);
+  // Config from store
   const paper = useImpositionStore((s) => s.paper);
+  const image = useImpositionStore((s) => s.image);
   const meta = useImpositionStore((s) => s.meta);
   const displayMeta = useImpositionStore((s) => s.displayMeta);
   const duplex = useImpositionStore((s) => s.paper.duplex ?? false);
 
+  // Slots from store
+  const frontSlots = useImpositionStore((s) => s.frontSlots);
+  const backSlots = useImpositionStore((s) => s.backSlots);
+  const setFrontSlots = useImpositionStore((s) => s.setFrontSlots);
+  const setBackSlots = useImpositionStore((s) => s.setBackSlots);
+  const ensureCapacityStore = useImpositionStore((s) => s.ensureCapacity);
+  const clearByFileId = useImpositionStore((s) => s.clearByFileId);
+
   const { isLoading, runWithLoading } = useLoadingTask();
 
-  // Single source of truth for layout (accounts for margins + cut marks)
+  // Layout
   const layout = useMemo(() => computeLayout(paper, image), [paper, image]);
   const slotsPerSheet = layout.rows * layout.cols;
 
-  const ensureCapacity = useCallback(
-    (arr: (UploadedImage | undefined)[]): (UploadedImage | undefined)[] => {
-      if (arr.length === slotsPerSheet) return arr;
-      if (arr.length > slotsPerSheet) return arr.slice(0, slotsPerSheet);
-      return [...arr, ...Array(slotsPerSheet - arr.length).fill(undefined)];
-    },
-    [slotsPerSheet]
-  );
-
+  // Keep slot arrays sized to layout
   useEffect(() => {
-    setImages((prev) => ensureCapacity(prev));
-    setBackImages((prev) => ensureCapacity(prev));
-  }, [ensureCapacity]);
+    ensureCapacityStore(slotsPerSheet);
+  }, [ensureCapacityStore, slotsPerSheet]);
 
-  const hasAnyFront = useMemo(() => images.some(Boolean), [images]);
-  const hasAnyBack = useMemo(() => backImages.some(Boolean), [backImages]);
+  const hasAnyFront = useMemo(() => frontSlots.some(Boolean), [frontSlots]);
+  const hasAnyBack = useMemo(() => backSlots.some(Boolean), [backSlots]);
   const hasAnyImage = hasAnyFront || hasAnyBack;
 
   // ===== Export Queue =====
@@ -87,43 +84,44 @@ export default function ItemsHandler(): JSX.Element | null {
     hydrateQueue();
   }, [hydrateQueue]);
 
-  // ===== Build UploadedImage from PdfPageImage (auto-rotate + cover-crop) =====
+  // ===== Create UploadedImage from a PdfPageImage =====
+  // Auto-rotate once if slot orientation differs (portrait vs landscape).
   const makeUploadedFromPage = useCallback(
-    async (page: PdfPageImage): Promise<UploadedImage> => {
-      const slotW = image.width;
-      const slotH = image.height;
+    async (p: PdfPageImage): Promise<UploadedImage> => {
+      const slotLandscape = image.width >= image.height;
+      const pageLandscape = p.width >= p.height;
 
-      const orientedSrc = await rotateIfNeeded(page.dataUrl, slotW, slotH, 300);
-      const { dataUrl: autoUrl } = await autoCoverCrop(
-        orientedSrc,
-        { width: slotW, height: slotH },
-        300,
-        { type: "image/png" },
-        image.margin
-      );
+      let dataUrl = p.dataUrl;
+      let rotationDeg = 0;
+
+      if (slotLandscape !== pageLandscape) {
+        dataUrl = await rotateDataUrl90(p.dataUrl); // pre-encode, avoids seams
+        rotationDeg = 90;
+      }
 
       return {
-        originalSrc: orientedSrc,
-        src: autoUrl,
-        name: `PDF page ${page.pageNumber}.png`,
+        originalSrc: dataUrl,
+        src: dataUrl,
+        name: `PDF page ${p.pageNumber}.png`,
         file: undefined,
-        sourceFileId: page.sourceFileId,
-        sourcePageNumber: page.sourcePageNumber,
+        sourceFileId: p.sourceFileId,
+        sourcePageNumber: p.sourcePageNumber,
+        rotationDeg,
       };
     },
-    [image.height, image.margin, image.width]
+    [image.width, image.height]
   );
 
   const replicatePageToSide = useCallback(
     async (side: "front" | "back", page: PdfPageImage) => {
       const ui = await makeUploadedFromPage(page);
-      const filled: (UploadedImage | undefined)[] = Array(slotsPerSheet)
-        .fill(null)
+      const filled = Array<UploadedImage | undefined>(slotsPerSheet)
+        .fill(undefined)
         .map(() => ({ ...ui }));
-      if (side === "front") setImages(filled);
-      else setBackImages(filled);
+      if (side === "front") setFrontSlots(filled);
+      else setBackSlots(filled);
     },
-    [makeUploadedFromPage, slotsPerSheet]
+    [makeUploadedFromPage, setFrontSlots, setBackSlots, slotsPerSheet]
   );
 
   // ===== Uploader hooks =====
@@ -139,18 +137,9 @@ export default function ItemsHandler(): JSX.Element | null {
   // Per-file clear: wipe only slots from that fileId
   const handleClearFile = useCallback(
     (fileId: string) => {
-      setImages((prev) =>
-        ensureCapacity(prev).map((itm) =>
-          itm && itm.sourceFileId === fileId ? undefined : itm
-        )
-      );
-      setBackImages((prev) =>
-        ensureCapacity(prev).map((itm) =>
-          itm && itm.sourceFileId === fileId ? undefined : itm
-        )
-      );
+      clearByFileId(fileId);
     },
-    [ensureCapacity]
+    [clearByFileId]
   );
 
   // Manual Apply buttons
@@ -161,7 +150,6 @@ export default function ItemsHandler(): JSX.Element | null {
     },
     [replicatePageToSide]
   );
-
   const handleApplyBack = useCallback(
     async (page: PdfPageImage | null) => {
       if (!page) return;
@@ -170,59 +158,61 @@ export default function ItemsHandler(): JSX.Element | null {
     [replicatePageToSide]
   );
 
-  // ===== Rotate per sheet (90°) with cover-crop =====
+  // ===== Rotate sheet (pre-encode + store rotationDeg) =====
   const rotateSheet = useCallback(
     async (side: "front" | "back") => {
-      const srcArr = side === "front" ? images : backImages;
+      const srcArr = side === "front" ? frontSlots : backSlots;
       const rotated = await Promise.all(
-        ensureCapacity(srcArr).map(async (itm) => {
-          if (!itm) return undefined;
-          const rotatedSrc = await rotateDataUrl90(itm.originalSrc);
-          const { dataUrl: autoUrl, crop } = await autoCoverCrop(
-            rotatedSrc,
-            { width: image.width, height: image.height },
-            300,
-            { type: "image/png" },
-            image.margin
-          );
-          return { ...itm, originalSrc: rotatedSrc, src: autoUrl, crop };
+        srcArr.map(async (it) => {
+          if (!it) return undefined;
+          const r = await rotateDataUrl90(it.src);
+          return {
+            ...it,
+            originalSrc: r,
+            src: r,
+            rotationDeg: ((it.rotationDeg ?? 0) + 90) % 360,
+          };
         })
       );
-      if (side === "front") setImages(rotated);
-      else setBackImages(rotated);
+      if (side === "front") setFrontSlots(rotated);
+      else setBackSlots(rotated);
     },
-    [
-      backImages,
-      ensureCapacity,
-      image.height,
-      image.margin,
-      image.width,
-      images,
-    ]
+    [frontSlots, backSlots, setFrontSlots, setBackSlots]
   );
 
   // ===== Clear controls =====
   const clearFront = useCallback(() => {
-    setImages(Array(slotsPerSheet).fill(undefined));
-  }, [slotsPerSheet]);
+    setFrontSlots(
+      Array<UploadedImage | undefined>(slotsPerSheet).fill(undefined)
+    );
+  }, [setFrontSlots, slotsPerSheet]);
 
   const clearBack = useCallback(() => {
-    setBackImages(Array(slotsPerSheet).fill(undefined));
-  }, [slotsPerSheet]);
+    setBackSlots(
+      Array<UploadedImage | undefined>(slotsPerSheet).fill(undefined)
+    );
+  }, [setBackSlots, slotsPerSheet]);
 
   const clearBoth = useCallback(() => {
-    setImages(Array(slotsPerSheet).fill(undefined));
-    setBackImages(Array(slotsPerSheet).fill(undefined));
-  }, [slotsPerSheet]);
+    setFrontSlots(
+      Array<UploadedImage | undefined>(slotsPerSheet).fill(undefined)
+    );
+    setBackSlots(
+      Array<UploadedImage | undefined>(slotsPerSheet).fill(undefined)
+    );
+  }, [setFrontSlots, setBackSlots, slotsPerSheet]);
 
-  // ===== Export (front only for now) =====
+  // ===== Export =====
   const buildCurrentPdfBytes = async () => {
-    const sheets = [ensureCapacity(images)];
+    const sheets: (UploadedImage | undefined)[][] = [];
+    sheets.push(frontSlots);
+    if (duplex && hasAnyBack) sheets.push(backSlots);
+
     const pdfBytes = await exportImpositionPdf({
       paper,
       image,
       sheets,
-      layout: { rows: layout.rows, cols: layout.cols }, // narrow type
+      layout: { rows: layout.rows, cols: layout.cols },
       customerName: meta.customerName,
       description: meta.description,
       displayMeta,
@@ -380,7 +370,7 @@ export default function ItemsHandler(): JSX.Element | null {
           image={image}
           customerName={meta.customerName}
           description={meta.description}
-          images={ensureCapacity(images)}
+          images={frontSlots}
           date={meta.date}
         />
       </div>
@@ -414,7 +404,7 @@ export default function ItemsHandler(): JSX.Element | null {
             image={image}
             customerName={meta.customerName}
             description={meta.description}
-            images={ensureCapacity(backImages)}
+            images={backSlots}
             date={meta.date}
           />
         </div>

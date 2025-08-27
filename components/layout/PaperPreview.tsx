@@ -201,6 +201,7 @@ export const PaperPreview: React.FC<Props> = ({
                         {
                           "--cell-w": `${cellWidth}px`,
                           "--cell-h": `${cellHeight}px`,
+                          overflow: 'hidden'
                         } as React.CSSProperties
                       }
                     >

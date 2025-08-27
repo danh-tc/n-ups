@@ -9,6 +9,8 @@ import React, {
   useState,
 } from "react";
 import "./pdf-upload.scss";
+import { listPdfIds, loadPdf, removePdf, savePdf } from "@/lib/uploadDb";
+import { useImpositionStore } from "@/store/useImpositionStore";
 
 /* ---------- Types only (no runtime import) ---------- */
 type PDFDocumentProxy =
@@ -102,6 +104,7 @@ async function renderPdfToImages(
   }[] = [];
 
   for (let i = 1; i <= cap; i += 1) {
+    // eslint-disable-next-line no-await-in-loop
     const page = await pdf.getPage(i);
 
     const cssViewport = page.getViewport({ scale: clamped });
@@ -117,8 +120,9 @@ async function renderPdfToImages(
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("Failed to get 2D context");
 
+    // eslint-disable-next-line no-await-in-loop
     await page.render({
-      canvas, // required by TS RenderParameters
+      canvas, // required by TS RenderParameters (dom typings)
       canvasContext: ctx,
       viewport: renderViewport,
       background: "transparent",
@@ -191,6 +195,53 @@ const PdfUpload: React.FC<PdfUploadProps> = ({
     return f.pages[selected.pageIdx] ?? null;
   }, [selected.fileId, selected.pageIdx, uploaded]);
 
+  // Guard: if slots already exist in store, don't auto-populate on hydrate
+  const slotsExist = useMemo(() => {
+    const s = useImpositionStore.getState();
+    return s.frontSlots.some(Boolean) || s.backSlots.some(Boolean);
+  }, []);
+
+  const importFromDb = useCallback(
+    async (fileId: string) => {
+      const rec = await loadPdf(fileId); // { name, buf }
+      if (!rec) return;
+
+      const file = new File([rec.buf], rec.name ?? "source.pdf", {
+        type: "application/pdf",
+      });
+
+      const { pages, numPages } = await renderPdfToImages(
+        file,
+        renderScale,
+        previewMaxPages
+      );
+
+      const enriched: PdfPageImage[] = pages.map((p) => ({
+        pageNumber: p.pageNumber,
+        width: p.width,
+        height: p.height,
+        dataUrl: p.dataUrl,
+        sourceFileId: fileId, // keep original id
+        sourcePageNumber: p.pageNumber,
+      }));
+
+      const entry: UploadedPdf = {
+        fileId,
+        fileName: rec.name ?? "source.pdf",
+        pages: enriched,
+        pageCount: numPages,
+      };
+
+      setUploaded((prev) => [
+        ...prev.filter((u) => u.fileId !== fileId),
+        entry,
+      ]);
+
+      onAfterConvert?.(enriched, fileId);
+    },
+    [onAfterConvert, previewMaxPages, renderScale]
+  );
+
   const validateMany = useCallback(
     (picked: FileList | null): File[] => {
       setError(null);
@@ -231,6 +282,7 @@ const PdfUpload: React.FC<PdfUploadProps> = ({
         }
 
         const fileId = genId();
+        await savePdf(fileId, file);
         const enriched: PdfPageImage[] = pages.map((p) => ({
           pageNumber: p.pageNumber,
           width: p.width,
@@ -265,24 +317,36 @@ const PdfUpload: React.FC<PdfUploadProps> = ({
   );
 
   const clearOneFile = useCallback(
-    (fileId: string) => {
-      setUploaded((prev) => prev.filter((f) => f.fileId !== fileId));
-      onClearFile?.(fileId);
-      setSelected((sel) =>
-        sel.fileId === fileId ? { fileId: null, pageIdx: 0 } : sel
-      );
-      if (uploaded.length <= 1) onSelect(null);
+    async (fileId: string) => {
+      setBusy(true);
+      try {
+        await removePdf(fileId);
+      } finally {
+        setUploaded((prev) => prev.filter((f) => f.fileId !== fileId));
+        onClearFile?.(fileId);
+        setSelected((sel) =>
+          sel.fileId === fileId ? { fileId: null, pageIdx: 0 } : sel
+        );
+        if (uploaded.length <= 1) onSelect(null);
+        setBusy(false);
+      }
     },
     [onClearFile, onSelect, uploaded.length]
   );
 
-  const clearAllFiles = useCallback(() => {
+  const clearAllFiles = useCallback(async () => {
+    setBusy(true);
     const ids = uploaded.map((u) => u.fileId);
-    setUploaded([]);
-    setSelected({ fileId: null, pageIdx: 0 });
-    ids.forEach((id) => onClearFile?.(id));
-    onSelect(null);
-  }, [onClearFile, onSelect, uploaded]);
+    try {
+      await Promise.allSettled(ids.map((id) => removePdf(id)));
+    } finally {
+      setUploaded([]);
+      setSelected({ fileId: null, pageIdx: 0 });
+      ids.forEach((id) => onClearFile?.(id));
+      onSelect(null);
+      setBusy(false);
+    }
+  }, [uploaded, onClearFile, onSelect]);
 
   const onInputChange = useCallback<React.ChangeEventHandler<HTMLInputElement>>(
     async (e) => {
@@ -331,12 +395,27 @@ const PdfUpload: React.FC<PdfUploadProps> = ({
     []
   );
 
+  // Hydrate from IndexedDB on mount (skip if slots already exist)
+  // Hydrate from IndexedDB on mount (always re-apply → full sheet gets filled)
   useEffect(() => {
-    if (initialFile) {
-      void importOneFile(initialFile);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    let cancelled = false;
+    (async () => {
+      setBusy(true);
+      try {
+        const ids = await listPdfIds();
+        for (const id of ids) {
+          if (cancelled) break;
+          // eslint-disable-next-line no-await-in-loop
+          await importFromDb(id); // calls onAfterConvert → ItemsHandler replicates whole sheet
+        }
+      } finally {
+        if (!cancelled) setBusy(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [importFromDb, setBusy]);
 
   return (
     <div className={["rethink-upload", className ?? ""].join(" ").trim()}>

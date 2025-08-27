@@ -52,4 +52,5 @@ export interface UploadedImage {
   file?: File;
   sourceFileId: string;
   sourcePageNumber: number;
+  rotationDeg?: number;
 }

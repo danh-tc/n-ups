@@ -3,8 +3,8 @@
 import "./image-cell.scss";
 
 interface Props {
-  width: number; // px
-  height: number; // px
+  width: number; 
+  height: number; 
   children?: React.ReactNode;
 }
 
@@ -15,7 +15,6 @@ export const ImageCell: React.FC<Props> = ({ width, height, children }) => (
       width,
       height,
       position: "relative",
-      // visual outer frame (slot)
       boxSizing: "border-box",
     }}
   >

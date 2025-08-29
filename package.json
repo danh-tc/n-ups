@@ -12,6 +12,7 @@
     "idb": "^8.0.3",
     "idb-keyval": "^6.2.2",
     "lucide-react": "^0.526.0",
+    "mupdf": "^1.26.4",
     "next": "15.4.1",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^5.4.54",

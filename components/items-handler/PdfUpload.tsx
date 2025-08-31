@@ -9,7 +9,16 @@ import React, {
   useState,
 } from "react";
 import "./pdf-upload.scss";
-import { listPdfIds, loadPdf, removePdf, savePdf } from "@/lib/uploadDb";
+import {
+  listPdfIds,
+  loadPdf,
+  removePdf,
+  savePdf,
+  upsertPreviews,
+  loadPreviews,
+  removePreviews,
+  type PreviewPage,
+} from "@/lib/uploadDb";
 import { useImpositionStore } from "@/store/useImpositionStore";
 
 /* ---------- Types only (no runtime import) ---------- */
@@ -26,7 +35,6 @@ async function loadPdfjs(): Promise<typeof import("pdfjs-dist")> {
       throw new Error("PDF.js can only load in the browser");
     }
     const mod = await import("pdfjs-dist");
-    // Worker import has no type defs by default; keep it guarded + one-line expect.
     // eslint-disable-next-line @typescript-eslint/ban-ts-comment
     // @ts-expect-error no declaration file for worker mjs
     await import("pdfjs-dist/build/pdf.worker.mjs");
@@ -38,11 +46,12 @@ async function loadPdfjs(): Promise<typeof import("pdfjs-dist")> {
 /** Page thumbnail with provenance (for per-file clear / mapping) */
 export interface PdfPageImage {
   pageNumber: number; // 1-based
-  width: string | number; // string is ok for CSS sizing
+  width: string | number;
   height: string | number;
-  dataUrl: string; // PNG data URL
+  dataUrl: string;
   sourceFileId: string;
   sourcePageNumber: number;
+  rotationDeg?: number;
 }
 
 export interface PdfUploadProps {
@@ -55,7 +64,7 @@ export interface PdfUploadProps {
   disabled?: boolean;
   className?: string;
   initialFile?: File | null;
-  renderScale?: number; // 1..4 (default 2)
+  renderScale?: number;
   previewMaxPages?: number;
   duplex?: boolean;
 }
@@ -73,7 +82,7 @@ const clamp = (n: number, lo: number, hi: number): number =>
 const genId = (): string =>
   Math.random().toString(36).slice(2) + Date.now().toString(36);
 
-/** Render a PDF into PNG pages (returns all pages; caller enforces global cap). */
+/** Render a PDF into PNG pages */
 async function renderPdfToImages(
   file: File,
   scale = 2,
@@ -88,7 +97,6 @@ async function renderPdfToImages(
   numPages: number;
 }> {
   const clamped = clamp(scale, 1, 4);
-
   const pdfjs = await loadPdfjs();
   const data = new Uint8Array(await file.arrayBuffer());
   const pdf: PDFDocumentProxy = await pdfjs.getDocument({ data }).promise;
@@ -103,10 +111,9 @@ async function renderPdfToImages(
     dataUrl: string;
   }[] = [];
 
-  for (let i = 1; i <= cap; i += 1) {
+  for (let i = 1; i <= cap; i++) {
     // eslint-disable-next-line no-await-in-loop
     const page = await pdf.getPage(i);
-
     const cssViewport = page.getViewport({ scale: clamped });
     const dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 3));
     const renderViewport = page.getViewport({ scale: clamped * dpr });
@@ -114,9 +121,6 @@ async function renderPdfToImages(
     const canvas: HTMLCanvasElement = document.createElement("canvas");
     canvas.width = Math.floor(renderViewport.width);
     canvas.height = Math.floor(renderViewport.height);
-    canvas.style.width = `${Math.floor(cssViewport.width)}px`;
-    canvas.style.height = `${Math.floor(cssViewport.height)}px`;
-
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("Failed to get 2D context");
 
@@ -173,7 +177,6 @@ const PdfUpload: React.FC<PdfUploadProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [isOver, setIsOver] = useState(false);
   const [busy, setBusy] = useState(false);
-
   const [uploaded, setUploaded] = useState<UploadedPdf[]>([]);
   const [selected, setSelected] = useState<{
     fileId: string | null;
@@ -182,6 +185,10 @@ const PdfUpload: React.FC<PdfUploadProps> = ({
     fileId: null,
     pageIdx: 0,
   });
+
+  // === new: bring in selection setters
+  const setFrontSelection = useImpositionStore((s) => s.setFrontSelection);
+  const setBackSelection = useImpositionStore((s) => s.setBackSelection);
 
   const totalPages = useMemo(
     () => uploaded.reduce((acc, f) => acc + f.pageCount, 0),
@@ -195,7 +202,6 @@ const PdfUpload: React.FC<PdfUploadProps> = ({
     return f.pages[selected.pageIdx] ?? null;
   }, [selected.fileId, selected.pageIdx, uploaded]);
 
-  // Guard: if slots already exist in store, don't auto-populate on hydrate
   const slotsExist = useMemo(() => {
     const s = useImpositionStore.getState();
     return s.frontSlots.some(Boolean) || s.backSlots.some(Boolean);
@@ -203,26 +209,66 @@ const PdfUpload: React.FC<PdfUploadProps> = ({
 
   const importFromDb = useCallback(
     async (fileId: string) => {
-      const rec = await loadPdf(fileId); // { name, buf }
-      if (!rec) return;
+      const cached = await loadPreviews(fileId);
+      if (cached.length > 0) {
+        const enrichedFromCache: PdfPageImage[] = cached.map((p) => ({
+          pageNumber: p.pageNumber,
+          width: p.width,
+          height: p.height,
+          dataUrl: p.dataUrl,
+          sourceFileId: fileId,
+          sourcePageNumber: p.pageNumber,
+          rotationDeg: p.rotationDeg ?? 0,
+        }));
+        const entryFromCache: UploadedPdf = {
+          fileId,
+          fileName: (await loadPdf(fileId))?.name ?? "source.pdf",
+          pages: enrichedFromCache,
+          pageCount: cached.length,
+        };
+        setUploaded((prev) => [
+          ...prev.filter((u) => u.fileId !== fileId),
+          entryFromCache,
+        ]);
 
+        if (!slotsExist) {
+          onAfterConvert?.(enrichedFromCache, fileId);
+          if (enrichedFromCache.length >= 1)
+            setFrontSelection({ fileId, pageNumber: 1 });
+          if (duplex && enrichedFromCache.length >= 2)
+            setBackSelection({ fileId, pageNumber: 2 });
+        }
+        return;
+      }
+
+      const rec = await loadPdf(fileId);
+      if (!rec) return;
       const file = new File([rec.buf], rec.name ?? "source.pdf", {
         type: "application/pdf",
       });
-
       const { pages, numPages } = await renderPdfToImages(
         file,
         renderScale,
         previewMaxPages
       );
 
-      const enriched: PdfPageImage[] = pages.map((p) => ({
+      const toPersist: PreviewPage[] = pages.map((p) => ({
         pageNumber: p.pageNumber,
         width: p.width,
         height: p.height,
         dataUrl: p.dataUrl,
-        sourceFileId: fileId, // keep original id
+        rotationDeg: 0,
+      }));
+      await upsertPreviews(fileId, toPersist);
+
+      const enriched: PdfPageImage[] = toPersist.map((p) => ({
+        pageNumber: p.pageNumber,
+        width: p.width,
+        height: p.height,
+        dataUrl: p.dataUrl,
+        sourceFileId: fileId,
         sourcePageNumber: p.pageNumber,
+        rotationDeg: 0,
       }));
 
       const entry: UploadedPdf = {
@@ -231,15 +277,27 @@ const PdfUpload: React.FC<PdfUploadProps> = ({
         pages: enriched,
         pageCount: numPages,
       };
-
       setUploaded((prev) => [
         ...prev.filter((u) => u.fileId !== fileId),
         entry,
       ]);
 
-      onAfterConvert?.(enriched, fileId);
+      if (!slotsExist) {
+        onAfterConvert?.(enriched, fileId);
+        if (enriched.length >= 1) setFrontSelection({ fileId, pageNumber: 1 });
+        if (duplex && enriched.length >= 2)
+          setBackSelection({ fileId, pageNumber: 2 });
+      }
     },
-    [onAfterConvert, previewMaxPages, renderScale]
+    [
+      onAfterConvert,
+      previewMaxPages,
+      renderScale,
+      slotsExist,
+      setFrontSelection,
+      setBackSelection,
+      duplex,
+    ]
   );
 
   const validateMany = useCallback(
@@ -247,7 +305,7 @@ const PdfUpload: React.FC<PdfUploadProps> = ({
       setError(null);
       if (!picked || picked.length === 0) return [];
       const files: File[] = [];
-      for (let i = 0; i < picked.length; i += 1) {
+      for (let i = 0; i < picked.length; i++) {
         const f = picked[i]!;
         if (!isPdf(f)) {
           setError(`Please choose PDF files only. "${f.name}" is not a PDF.`);
@@ -273,23 +331,32 @@ const PdfUpload: React.FC<PdfUploadProps> = ({
           renderScale,
           previewMaxPages
         );
-
         const newTotal = totalPages + numPages;
-        if (newTotal > GLOBAL_PAGE_CAP) {
+        if (newTotal > GLOBAL_PAGE_CAP)
           throw new Error(
-            `You can upload up to ${GLOBAL_PAGE_CAP} total pages across all PDFs. "${file.name}" has ${numPages} page(s), which would exceed the limit (current total: ${totalPages}).`
+            `You can upload up to ${GLOBAL_PAGE_CAP} total pages.`
           );
-        }
 
         const fileId = genId();
         await savePdf(fileId, file);
-        const enriched: PdfPageImage[] = pages.map((p) => ({
+
+        const toPersist: PreviewPage[] = pages.map((p) => ({
+          pageNumber: p.pageNumber,
+          width: p.width,
+          height: p.height,
+          dataUrl: p.dataUrl,
+          rotationDeg: 0,
+        }));
+        await upsertPreviews(fileId, toPersist);
+
+        const enriched: PdfPageImage[] = toPersist.map((p) => ({
           pageNumber: p.pageNumber,
           width: p.width,
           height: p.height,
           dataUrl: p.dataUrl,
           sourceFileId: fileId,
           sourcePageNumber: p.pageNumber,
+          rotationDeg: 0,
         }));
 
         const entry: UploadedPdf = {
@@ -298,29 +365,38 @@ const PdfUpload: React.FC<PdfUploadProps> = ({
           pages: enriched,
           pageCount: numPages,
         };
-
         setUploaded((prev) => [...prev, entry]);
         setSelected({ fileId, pageIdx: 0 });
 
         onSelect(file);
         onAfterConvert?.(enriched, fileId);
+        if (enriched.length >= 1) setFrontSelection({ fileId, pageNumber: 1 });
+        if (duplex && enriched.length >= 2)
+          setBackSelection({ fileId, pageNumber: 2 });
       } catch (e) {
-        // eslint-disable-next-line no-console
         console.error(e);
-        const msg = e instanceof Error ? e.message : "Failed to read the PDF.";
-        setError(msg);
+        setError(e instanceof Error ? e.message : "Failed to read the PDF.");
       } finally {
         setBusy(false);
       }
     },
-    [onAfterConvert, onSelect, previewMaxPages, renderScale, totalPages]
+    [
+      onAfterConvert,
+      onSelect,
+      previewMaxPages,
+      renderScale,
+      totalPages,
+      setFrontSelection,
+      setBackSelection,
+      duplex,
+    ]
   );
 
   const clearOneFile = useCallback(
     async (fileId: string) => {
       setBusy(true);
       try {
-        await removePdf(fileId);
+        await Promise.allSettled([removePdf(fileId), removePreviews(fileId)]);
       } finally {
         setUploaded((prev) => prev.filter((f) => f.fileId !== fileId));
         onClearFile?.(fileId);
@@ -328,75 +404,40 @@ const PdfUpload: React.FC<PdfUploadProps> = ({
           sel.fileId === fileId ? { fileId: null, pageIdx: 0 } : sel
         );
         if (uploaded.length <= 1) onSelect(null);
+        setFrontSelection(null);
+        setBackSelection(null);
         setBusy(false);
       }
     },
-    [onClearFile, onSelect, uploaded.length]
+    [
+      onClearFile,
+      onSelect,
+      uploaded.length,
+      setFrontSelection,
+      setBackSelection,
+    ]
   );
 
   const clearAllFiles = useCallback(async () => {
     setBusy(true);
     const ids = uploaded.map((u) => u.fileId);
     try {
-      await Promise.allSettled(ids.map((id) => removePdf(id)));
+      await Promise.allSettled([
+        ...ids.map((id) => removePdf(id)),
+        ...ids.map((id) => removePreviews(id)),
+      ]);
     } finally {
       setUploaded([]);
       setSelected({ fileId: null, pageIdx: 0 });
       ids.forEach((id) => onClearFile?.(id));
       onSelect(null);
+      setFrontSelection(null);
+      setBackSelection(null);
       setBusy(false);
     }
-  }, [uploaded, onClearFile, onSelect]);
+  }, [uploaded, onClearFile, onSelect, setFrontSelection, setBackSelection]);
 
-  const onInputChange = useCallback<React.ChangeEventHandler<HTMLInputElement>>(
-    async (e) => {
-      if (disabled) return;
-      const files = validateMany(e.target.files);
-      if (files.length === 0) return;
-
-      for (const f of files) {
-        // eslint-disable-next-line no-await-in-loop
-        await importOneFile(f);
-      }
-      if (inputRef.current) inputRef.current.value = "";
-    },
-    [disabled, importOneFile, validateMany]
-  );
-
-  const onDrop = useCallback<React.DragEventHandler<HTMLLabelElement>>(
-    async (e) => {
-      e.preventDefault();
-      if (disabled) return;
-      setIsOver(false);
-      const files = validateMany(e.dataTransfer.files);
-      if (files.length === 0) return;
-      for (const f of files) {
-        // eslint-disable-next-line no-await-in-loop
-        await importOneFile(f);
-      }
-    },
-    [disabled, importOneFile, validateMany]
-  );
-
-  const onDragOver = useCallback<React.DragEventHandler<HTMLLabelElement>>(
-    (e) => {
-      e.preventDefault();
-      if (disabled) return;
-      setIsOver(true);
-    },
-    [disabled]
-  );
-
-  const onDragLeave = useCallback<React.DragEventHandler<HTMLLabelElement>>(
-    (e) => {
-      e.preventDefault();
-      setIsOver(false);
-    },
-    []
-  );
-
-  // Hydrate from IndexedDB on mount (skip if slots already exist)
-  // Hydrate from IndexedDB on mount (always re-apply → full sheet gets filled)
+  // Hydrate
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -405,8 +446,7 @@ const PdfUpload: React.FC<PdfUploadProps> = ({
         const ids = await listPdfIds();
         for (const id of ids) {
           if (cancelled) break;
-          // eslint-disable-next-line no-await-in-loop
-          await importFromDb(id); // calls onAfterConvert → ItemsHandler replicates whole sheet
+          await importFromDb(id);
         }
       } finally {
         if (!cancelled) setBusy(false);
@@ -415,7 +455,7 @@ const PdfUpload: React.FC<PdfUploadProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [importFromDb, setBusy]);
+  }, [importFromDb]);
 
   return (
     <div className={["rethink-upload", className ?? ""].join(" ").trim()}>
@@ -429,9 +469,22 @@ const PdfUpload: React.FC<PdfUploadProps> = ({
         ]
           .join(" ")
           .trim()}
-        onDrop={onDrop}
-        onDragOver={onDragOver}
-        onDragLeave={onDragLeave}
+        onDrop={(e) => {
+          e.preventDefault();
+          if (!disabled) {
+            setIsOver(false);
+            const files = validateMany(e.dataTransfer.files);
+            files.forEach((f) => importOneFile(f));
+          }
+        }}
+        onDragOver={(e) => {
+          e.preventDefault();
+          if (!disabled) setIsOver(true);
+        }}
+        onDragLeave={(e) => {
+          e.preventDefault();
+          setIsOver(false);
+        }}
         aria-disabled={disabled || busy}
       >
         <div className="rethink-upload__content">
@@ -439,7 +492,7 @@ const PdfUpload: React.FC<PdfUploadProps> = ({
             {busy ? "Processing…" : "Upload PDF(s)"}
           </strong>
           <span className="rethink-upload__hint">
-            PDF only · total pages across all uploads ≤ {GLOBAL_PAGE_CAP}
+            PDF only · total pages ≤ {GLOBAL_PAGE_CAP}
           </span>
           <span className="rethink-upload__sub">Max {maxSizeMB} MB each</span>
         </div>
@@ -451,11 +504,14 @@ const PdfUpload: React.FC<PdfUploadProps> = ({
           accept="application/pdf"
           multiple
           disabled={disabled || busy}
-          onChange={onInputChange}
+          onChange={(e) => {
+            const files = validateMany(e.target.files);
+            files.forEach((f) => importOneFile(f));
+            if (inputRef.current) inputRef.current.value = "";
+          }}
         />
       </label>
 
-      {/* Error */}
       {error && (
         <p className="rethink-upload__error" role="alert">
           {error}
@@ -466,20 +522,18 @@ const PdfUpload: React.FC<PdfUploadProps> = ({
       {uploaded.length > 0 && (
         <div className="rethink-upload__files">
           <div className="rethink-upload__files-head">
-            <span className="rethink-upload__files-count">
+            <span>
               Total pages: {totalPages} / {GLOBAL_PAGE_CAP}
             </span>
             <button
               type="button"
               className="rethink-btn rethink-btn--outline rethink-btn--sm"
               onClick={clearAllFiles}
-              aria-label="Clear all uploaded PDFs"
-              title="Remove all PDFs and clear all slots"
+              title="Remove all PDFs"
             >
               Clear All PDFs
             </button>
           </div>
-
           {uploaded.map((f) => (
             <div key={f.fileId} className="rethink-upload__file">
               <div className="rethink-upload__file-head">
@@ -487,7 +541,7 @@ const PdfUpload: React.FC<PdfUploadProps> = ({
                   <span className="rethink-upload__filename" title={f.fileName}>
                     {f.fileName}
                   </span>
-                  <span className="rethink-upload__filepages">
+                  <span>
                     {f.pageCount} page{f.pageCount > 1 ? "s" : ""}
                   </span>
                 </div>
@@ -496,17 +550,13 @@ const PdfUpload: React.FC<PdfUploadProps> = ({
                     type="button"
                     className="rethink-btn rethink-btn--outline rethink-btn--sm"
                     onClick={() => clearOneFile(f.fileId)}
-                    aria-label={`Clear ${f.fileName}`}
-                    title="Remove this PDF and its slots"
                   >
                     Clear PDF
                   </button>
                 </div>
               </div>
-
-              {/* Thumbnails */}
               {f.pages.length > 0 && (
-                <div className="rethink-upload__preview" aria-live="polite">
+                <div className="rethink-upload__preview">
                   {f.pages.map((p, idx) => {
                     const isActive =
                       selected.fileId === f.fileId && selected.pageIdx === idx;
@@ -525,11 +575,8 @@ const PdfUpload: React.FC<PdfUploadProps> = ({
                         }
                         title={`Page ${p.pageNumber}`}
                       >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={p.dataUrl} alt={`Page ${p.pageNumber}`} />
-                        <span className="rethink-upload__thumb-label">
-                          P{p.pageNumber}
-                        </span>
+                        <span>P{p.pageNumber}</span>
                       </button>
                     );
                   })}
@@ -540,20 +587,31 @@ const PdfUpload: React.FC<PdfUploadProps> = ({
         </div>
       )}
 
-      {/* Apply actions for selected page */}
       {selectedPage && (
         <div className="rethink-upload__actions">
           <button
             type="button"
             className="rethink-btn rethink-btn--primary rethink-btn--md"
-            onClick={() => onApplyFront?.(selectedPage)}
+            onClick={() => {
+              onApplyFront?.(selectedPage);
+              setFrontSelection({
+                fileId: selectedPage.sourceFileId,
+                pageNumber: selectedPage.pageNumber,
+              });
+            }}
           >
             Apply to front side
           </button>
           <button
             type="button"
             className="rethink-btn rethink-btn--md"
-            onClick={() => onApplyBack?.(selectedPage)}
+            onClick={() => {
+              onApplyBack?.(selectedPage);
+              setBackSelection({
+                fileId: selectedPage.sourceFileId,
+                pageNumber: selectedPage.pageNumber,
+              });
+            }}
             disabled={!duplex}
             title={
               duplex ? "Apply to back side" : "Enable duplex to apply back"

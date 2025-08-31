@@ -19,6 +19,9 @@ import { useExportQueueStore } from "@/store/useExportQueueStore";
 import FullScreenBrandedLoader from "../layout/FullScreenLoader";
 import { useLoadingTask } from "@/hooks/useLoadingTask";
 import PdfUpload, { type PdfPageImage } from "./PdfUpload";
+import { loadPreviews, upsertPreviews, type PreviewPage } from "@/lib/uploadDb";
+import { mapStoreToNUpPlan } from "@/lib/mapStoreToNUpPlan";
+import { exportNUp } from "@/lib/exportNUp";
 
 /** Rotate a dataURL 90deg clockwise (pre-encode to avoid seams) */
 async function rotateDataUrl90(dataUrl: string): Promise<string> {
@@ -55,6 +58,10 @@ export default function ItemsHandler(): JSX.Element | null {
   const ensureCapacityStore = useImpositionStore((s) => s.ensureCapacity);
   const clearByFileId = useImpositionStore((s) => s.clearByFileId);
 
+  // === newly added: setters for selections
+  const setFrontSelection = useImpositionStore((s) => s.setFrontSelection);
+  const setBackSelection = useImpositionStore((s) => s.setBackSelection);
+
   const { isLoading, runWithLoading } = useLoadingTask();
 
   // Layout
@@ -85,18 +92,22 @@ export default function ItemsHandler(): JSX.Element | null {
   }, [hydrateQueue]);
 
   // ===== Create UploadedImage from a PdfPageImage =====
-  // Auto-rotate once if slot orientation differs (portrait vs landscape).
   const makeUploadedFromPage = useCallback(
     async (p: PdfPageImage): Promise<UploadedImage> => {
       const slotLandscape = image.width >= image.height;
-      const pageLandscape = p.width >= p.height;
+
+      const baseRot = (((p.rotationDeg ?? 0) % 360) + 360) % 360;
+      const pageLandscapeBeforeAuto =
+        baseRot === 90 || baseRot === 270
+          ? (Number(p.height) as number) >= (Number(p.width) as number)
+          : (Number(p.width) as number) >= (Number(p.height) as number);
 
       let dataUrl = p.dataUrl;
-      let rotationDeg = 0;
+      let rotationDeg = baseRot;
 
-      if (slotLandscape !== pageLandscape) {
-        dataUrl = await rotateDataUrl90(p.dataUrl); // pre-encode, avoids seams
-        rotationDeg = 90;
+      if (slotLandscape !== pageLandscapeBeforeAuto) {
+        dataUrl = await rotateDataUrl90(dataUrl);
+        rotationDeg = (rotationDeg + 90) % 360;
       }
 
       return {
@@ -112,24 +123,46 @@ export default function ItemsHandler(): JSX.Element | null {
     [image.width, image.height]
   );
 
+  // Replicate a single page to an entire side
   const replicatePageToSide = useCallback(
     async (side: "front" | "back", page: PdfPageImage) => {
       const ui = await makeUploadedFromPage(page);
       const filled = Array<UploadedImage | undefined>(slotsPerSheet)
         .fill(undefined)
         .map(() => ({ ...ui }));
-      if (side === "front") setFrontSlots(filled);
-      else setBackSlots(filled);
+      if (side === "front") {
+        setFrontSlots(filled);
+        setFrontSelection({
+          fileId: page.sourceFileId,
+          pageNumber: page.pageNumber,
+        }); // new
+      } else {
+        setBackSlots(filled);
+        setBackSelection({
+          fileId: page.sourceFileId,
+          pageNumber: page.pageNumber,
+        }); // new
+      }
     },
-    [makeUploadedFromPage, setFrontSlots, setBackSlots, slotsPerSheet]
+    [
+      makeUploadedFromPage,
+      setFrontSlots,
+      setBackSlots,
+      slotsPerSheet,
+      setFrontSelection,
+      setBackSelection,
+    ]
   );
 
   // ===== Uploader hooks =====
   const handleAfterConvert = useCallback(
     async (pages: PdfPageImage[], _fileId: string) => {
-      if (pages.length >= 1) await replicatePageToSide("front", pages[0]);
-      if (duplex && pages.length >= 2)
+      if (pages.length >= 1) {
+        await replicatePageToSide("front", pages[0]);
+      }
+      if (duplex && pages.length >= 2) {
         await replicatePageToSide("back", pages[1]);
+      }
     },
     [duplex, replicatePageToSide]
   );
@@ -158,7 +191,48 @@ export default function ItemsHandler(): JSX.Element | null {
     [replicatePageToSide]
   );
 
-  // ===== Rotate sheet (pre-encode + store rotationDeg) =====
+  // ===== Persist rotations to preview cache =====
+  const persistSideRotations = useCallback(
+    async (side: "front" | "back") => {
+      const slots = side === "front" ? frontSlots : backSlots;
+
+      const mapByFile = new Map<
+        string,
+        Map<number, { dataUrl: string; rotationDeg: number }>
+      >();
+
+      for (const it of slots) {
+        if (!it || !it.sourceFileId || !it.sourcePageNumber) continue;
+        const fid = it.sourceFileId;
+        const pno = it.sourcePageNumber;
+        if (!mapByFile.has(fid)) mapByFile.set(fid, new Map());
+        if (!mapByFile.get(fid)!.has(pno)) {
+          mapByFile.get(fid)!.set(pno, {
+            dataUrl: it.src,
+            rotationDeg: (((it.rotationDeg ?? 0) % 360) + 360) % 360,
+          });
+        }
+      }
+
+      for (const [fid, pageMap] of mapByFile.entries()) {
+        const prevs = await loadPreviews(fid);
+        const merged: PreviewPage[] = prevs.map((p) => {
+          const upd = pageMap.get(p.pageNumber);
+          if (!upd) return p;
+          return {
+            pageNumber: p.pageNumber,
+            width: p.width,
+            height: p.height,
+            dataUrl: upd.dataUrl,
+            rotationDeg: upd.rotationDeg,
+          };
+        });
+        if (merged.length > 0) await upsertPreviews(fid, merged);
+      }
+    },
+    [frontSlots, backSlots]
+  );
+
   const rotateSheet = useCallback(
     async (side: "front" | "back") => {
       const srcArr = side === "front" ? frontSlots : backSlots;
@@ -176,22 +250,25 @@ export default function ItemsHandler(): JSX.Element | null {
       );
       if (side === "front") setFrontSlots(rotated);
       else setBackSlots(rotated);
+
+      await persistSideRotations(side);
     },
-    [frontSlots, backSlots, setFrontSlots, setBackSlots]
+    [frontSlots, backSlots, setFrontSlots, setBackSlots, persistSideRotations]
   );
 
-  // ===== Clear controls =====
   const clearFront = useCallback(() => {
     setFrontSlots(
       Array<UploadedImage | undefined>(slotsPerSheet).fill(undefined)
     );
-  }, [setFrontSlots, slotsPerSheet]);
+    setFrontSelection(null); // new
+  }, [setFrontSlots, slotsPerSheet, setFrontSelection]);
 
   const clearBack = useCallback(() => {
     setBackSlots(
       Array<UploadedImage | undefined>(slotsPerSheet).fill(undefined)
     );
-  }, [setBackSlots, slotsPerSheet]);
+    setBackSelection(null); // new
+  }, [setBackSlots, slotsPerSheet, setBackSelection]);
 
   const clearBoth = useCallback(() => {
     setFrontSlots(
@@ -200,7 +277,15 @@ export default function ItemsHandler(): JSX.Element | null {
     setBackSlots(
       Array<UploadedImage | undefined>(slotsPerSheet).fill(undefined)
     );
-  }, [setFrontSlots, setBackSlots, slotsPerSheet]);
+    setFrontSelection(null); // new
+    setBackSelection(null); // new
+  }, [
+    setFrontSlots,
+    setBackSlots,
+    slotsPerSheet,
+    setFrontSelection,
+    setBackSelection,
+  ]);
 
   // ===== Export =====
   const buildCurrentPdfBytes = async () => {
@@ -227,8 +312,34 @@ export default function ItemsHandler(): JSX.Element | null {
   const handleExportPdf = () => {
     if (!hasAnyImage) return;
     return runWithLoading(async () => {
-      const pdfBytes = await buildCurrentPdfBytes();
-      const blob = new Blob([pdfBytes], { type: "application/pdf" });
+      // Build plans from selections
+      const frontPlan = await mapStoreToNUpPlan("front");
+      console.log(frontPlan)
+      const backPlan = duplex ? await mapStoreToNUpPlan("back") : null;
+
+      // Nothing to export?
+      if (!frontPlan && !backPlan) return;
+
+      // Export each side to PDF bytes
+      const parts: Uint8Array[] = [];
+      if (frontPlan) parts.push(await exportNUp(frontPlan));
+      if (backPlan) parts.push(await exportNUp(backPlan));
+
+      // If two parts, merge into one PDF with 2 pages; else keep single part
+      let outBytes = parts[0];
+      if (parts.length === 2) {
+        const { PDFDocument } = await import("pdf-lib");
+        const merged = await PDFDocument.create();
+        for (const bytes of parts) {
+          const doc = await PDFDocument.load(bytes);
+          const copied = await merged.copyPages(doc, doc.getPageIndices());
+          copied.forEach((p) => merged.addPage(p));
+        }
+        outBytes = await merged.save();
+      }
+
+      // Preview in new tab
+      const blob = new Blob([outBytes], { type: "application/pdf" });
       const url = URL.createObjectURL(blob);
       window.open(url, "_blank");
     });
@@ -268,7 +379,6 @@ export default function ItemsHandler(): JSX.Element | null {
 
   return (
     <div className="rethink-items rethink-container">
-      {/* PDF uploader (multi-file, per-file clear, auto-apply) */}
       <PdfUpload
         maxSizeMB={50}
         renderScale={2}
@@ -325,24 +435,16 @@ export default function ItemsHandler(): JSX.Element | null {
             disabled={!hasAnyImage}
             title={
               hasAnyImage
-                ? "Export current job"
-                : "Add at least one image to enable"
+                ? "Export current sheet(s) to PDF"
+                : "Add images to enable export"
             }
           >
-            Export Current
-          </button>
-          <button
-            className="rethink-btn rethink-btn--outline rethink-btn--md"
-            onClick={handleExportAll}
-            disabled={!queueItems.length}
-            title="Merge all queued PDFs into one file"
-          >
-            Export All
+            Export PDF
           </button>
         </div>
       </div>
 
-      {/* FRONT */}
+      {/* Front */}
       <div className="rethink-paper">
         <div className="rethink-paper__head">
           <div className="rethink-paper__chip">Front side</div>
@@ -375,7 +477,7 @@ export default function ItemsHandler(): JSX.Element | null {
         />
       </div>
 
-      {/* BACK */}
+      {/* Back */}
       {duplex && (
         <div className="rethink-paper">
           <div className="rethink-paper__head">

@@ -38,6 +38,16 @@ interface ImpositionState {
 
   rotateFrontBy: (deg: number) => void; // sheet-wide rotation
   rotateBackBy: (deg: number) => void; // sheet-wide rotation
+
+  /* ===== Newly added ===== */
+  frontSelection: { fileId: string; pageNumber: number } | null;
+  backSelection: { fileId: string; pageNumber: number } | null;
+  setFrontSelection: (
+    sel: { fileId: string; pageNumber: number } | null
+  ) => void;
+  setBackSelection: (
+    sel: { fileId: string; pageNumber: number } | null
+  ) => void;
 }
 
 // Defaults
@@ -46,7 +56,7 @@ const defaultPaper: PaperConfig = {
   height: 297,
   duplex: false,
   margin: { top: 5, right: 5, bottom: 5, left: 5 },
-  gap: { horizontal: 2, vertical: 2 },
+  gap: { horizontal: 0, vertical: 0 },
   cutMarkLengthMm: 6,
 };
 
@@ -143,6 +153,12 @@ export const useImpositionStore = create<ImpositionState>()(
               : it
           ),
         })),
+
+      /* ===== New fields + setters ===== */
+      frontSelection: null,
+      backSelection: null,
+      setFrontSelection: (sel) => set({ frontSelection: sel }),
+      setBackSelection: (sel) => set({ backSelection: sel }),
     }),
     {
       name: "imposition-store-v2",

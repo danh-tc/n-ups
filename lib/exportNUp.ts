@@ -75,7 +75,7 @@ export interface MetaInfo {
   date?: string;
   customerName?: string;
   description?: string;
-  displayMeta?: boolean
+  displayMeta?: boolean;
 }
 
 export interface NUpPlan {
@@ -282,12 +282,17 @@ export async function exportNUp(plan: NUpPlan): Promise<Uint8Array> {
 
   const metaText = [meta?.date, meta?.customerName, meta?.description]
     .filter(Boolean)
-    .join(" — ");
+    .join(" - ");
   if (metaText && meta?.displayMeta) {
     const xText = mmToPt(paper.marginMm.left);
     const yText = mmToPt(paper.marginMm.bottom);
     page.pushOperators(pushGraphicsState(), setFillingColor(cmyk(0, 0, 0, 1)));
-    page.drawText(metaText, { x: xText, y: yText, size: 10 });
+    page.drawText(metaText, {
+      x: xText,
+      y: yText,
+      size: 10,
+      color: cmyk(0, 0, 0, 1),
+    });
     page.pushOperators(popGraphicsState());
   }
 

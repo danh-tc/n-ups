@@ -1,4 +1,3 @@
-// components/config/ImageSettingsForm.tsx
 "use client";
 import "./image-settings-form.scss";
 import type { ImageConfig, ImageMargin } from "@/types/types";
@@ -32,10 +31,32 @@ export const ImageSettingsForm: React.FC<Props> = ({ value, onChange }) => {
     onChange({ ...value, margin: { ...m, top: n, bottom: n } });
 
   const applyBothGutters = (n: number) =>
+    onChange({ ...value, margin: { top: n, right: n, bottom: n, left: n } });
+
+  // NEW: reset all (width, height, all gutters -> 0)
+  const resetAll = () =>
     onChange({
       ...value,
-      margin: { top: n, right: n, bottom: n, left: n },
+      width: 0,
+      height: 0,
+      margin: { top: 0, right: 0, bottom: 0, left: 0 },
     });
+
+  // NEW: swap W <-> H
+  const swapSize = () =>
+    onChange({
+      ...value,
+      width: value.height,
+      height: value.width,
+    });
+
+  const isResetDisabled =
+    value.width === 0 &&
+    value.height === 0 &&
+    (m.top ?? 0) === 0 &&
+    (m.right ?? 0) === 0 &&
+    (m.bottom ?? 0) === 0 &&
+    (m.left ?? 0) === 0;
 
   // Active preset only if BOTH gutters match one of the preset values
   const activePreset =
@@ -48,6 +69,29 @@ export const ImageSettingsForm: React.FC<Props> = ({ value, onChange }) => {
     >
       <div className="rethink-image-settings-form__section">
         <div className="rethink-image-settings-form__title">Hangtag Size</div>
+        <div
+          className="rethink-image-settings-form__actions"
+          style={{ marginTop: 8 }}
+        >
+          <button
+            type="button"
+            className="rethink-btn rethink-btn--outline rethink-btn--sm"
+            onClick={swapSize}
+            title="Swap width and height"
+          >
+            Swap W↔H
+          </button>
+          <button
+            type="button"
+            className="rethink-btn rethink-btn--outline rethink-btn--sm"
+            onClick={resetAll}
+            disabled={isResetDisabled}
+            title="Reset width, height, and all gutters to 0"
+            style={{ marginLeft: 8 }}
+          >
+            Reset All
+          </button>
+        </div>
         <div className="rethink-image-settings-form__grid">
           <label className="rethink-field">
             <span className="rethink-field__label">Width (mm)</span>
@@ -131,16 +175,6 @@ export const ImageSettingsForm: React.FC<Props> = ({ value, onChange }) => {
               onChange={(e) => setGutterV(safeNum(e.target.value))}
             />
           </label>
-        </div>
-
-        <div className="rethink-image-settings-form__actions">
-          <button
-            type="button"
-            className="rethink-btn rethink-btn--outline rethink-btn--sm"
-            onClick={() => applyBothGutters(0)}
-          >
-            Reset gutters
-          </button>
         </div>
       </div>
     </form>

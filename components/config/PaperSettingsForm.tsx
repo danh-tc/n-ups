@@ -55,6 +55,34 @@ export const PaperSettingsForm: React.FC<Props> = ({ value, onChange }) => {
 
   const safeNumber = (input: string) => Math.max(0, Number(input) || 0);
 
+  // --- NEW: reset button handler ---
+  const resetPaper = () => {
+    onChange({
+      ...value,
+      width: 0,
+      height: 0,
+      margin: { top: 0, right: 0, bottom: 0, left: 0 },
+      cutMarkLengthMm: 0,
+    });
+  };
+
+  const swapPaper = () => {
+    onChange({
+      ...value,
+      width: value.height,
+      height: value.width,
+    });
+  };
+
+  const isResetDisabled =
+    value.width === 0 &&
+    value.height === 0 &&
+    value.margin.top === 0 &&
+    value.margin.right === 0 &&
+    value.margin.bottom === 0 &&
+    value.margin.left === 0 &&
+    (value.cutMarkLengthMm ?? 0) === 0;
+
   return (
     <form className="rethink-paper-settings-form">
       <div className="rethink-paper-settings-form__printing">
@@ -71,6 +99,27 @@ export const PaperSettingsForm: React.FC<Props> = ({ value, onChange }) => {
             <em className="rethink-checkbox__hint"> (unchecked = simplex)</em>
           </span>
         </label>
+
+        <div className="rethink-paper-settings-form__actions">
+          <button
+            type="button"
+            className="rethink-btn rethink-btn--sm rethink-btn--outline"
+            onClick={resetPaper}
+            disabled={isResetDisabled}
+            title="Reset paper size, margins, and crop mark length to 0"
+          >
+            Reset to 0
+          </button>
+          <button
+            type="button"
+            className="rethink-btn rethink-btn--sm rethink-btn--outline"
+            onClick={swapPaper}
+            title="Swap paper width and height"
+            style={{ marginLeft: 8 }}
+          >
+            Swap W↔H
+          </button>
+        </div>
       </div>
 
       {/* Dimensions */}

@@ -107,7 +107,8 @@ export async function mapStoreToNUpPlan(
     meta: {
       date: state.meta.date,
       customerName: state.meta.customerName,
-      description: state.meta.description
+      description: state.meta.description,
+      displayMeta: state.displayMeta
     }, 
   };
 

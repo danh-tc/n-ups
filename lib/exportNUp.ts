@@ -12,6 +12,9 @@ import {
   popGraphicsState,
   setStrokingColor,
   PDFPage,
+  translate,
+  rotateRadians,
+  setFillingColor,
 } from "pdf-lib";
 
 export interface MarginMm {
@@ -69,8 +72,9 @@ export interface SlotInput {
 }
 
 export interface MetaInfo {
-  title?: string;
-  author?: string;
+  date?: string;
+  customerName?: string;
+  description?: string;
 }
 
 export interface NUpPlan {
@@ -122,24 +126,34 @@ function ptRectFromTrimAndBleed(
   return { trim, outer };
 }
 
-/* ---------- Cut-mark drawing (I-shape perimeter, K=100) ---------- */
+/* ---------- Cut-mark drawing (perimeter “I” at ALL cut lines, K=100) ---------- */
+// Ticks are placed on page perimeter aligned to EVERY trim boundary (xs & ys),
+// and start exactly at TRIM + BLEED (+ optional offset).
 function drawCutMarksFromTrimRects(
   page: PDFPage,
   trims: PtRect[],
-  mark: MarkConfig
+  mark: MarkConfig,
+  perimeterBleedPt?: {
+    top: number;
+    right: number;
+    bottom: number;
+    left: number;
+  }
 ): void {
   if (!trims.length) return;
 
   const cutLenPt = mmToPt(mark.cutLenMm);
   const offsetPt = mmToPt(mark.offsetMm ?? 0);
 
-  page.pushOperators(pushGraphicsState());
-  page.pushOperators(setLineCap(1));
-  page.pushOperators(setLineJoin(1));
-  page.pushOperators(setLineWidth(mark.cutStrokePt));
-  page.pushOperators(setStrokingColor(cmyk(0, 0, 0, 1))); // K100
+  page.pushOperators(
+    pushGraphicsState(),
+    setLineCap(0), // butt for crisp ends
+    setLineJoin(0),
+    setLineWidth(mark.cutStrokePt),
+    setStrokingColor(cmyk(0, 0, 0, 1)) // K100
+  );
 
-  // boundaries from TRIM rects
+  // Unique vertical/horizontal boundaries from TRIM rects
   const xs = Array.from(
     new Set(trims.flatMap((r) => [r.x, r.x + r.width]))
   ).sort((a, b) => a - b);
@@ -152,82 +166,32 @@ function drawCutMarksFromTrimRects(
   const bottom = ys[0];
   const top = ys[ys.length - 1];
 
-  const lines: number[][] = [];
-  const pushLine = (x1: number, y1: number, x2: number, y2: number): void => {
-    lines.push([x1, y1], [x2, y2]);
+  // Perimeter offsets = bleed + offset
+  const offL = (perimeterBleedPt?.left ?? 0) + offsetPt;
+  const offR = (perimeterBleedPt?.right ?? 0) + offsetPt;
+  const offT = (perimeterBleedPt?.top ?? 0) + offsetPt;
+  const offB = (perimeterBleedPt?.bottom ?? 0) + offsetPt;
+
+  const draw = (x1: number, y1: number, x2: number, y2: number): void => {
+    page.pushOperators(moveTo(x1, y1), lineTo(x2, y2), stroke());
   };
 
-  // Corner L
-  // BL
-  pushLine(
-    left - offsetPt - cutLenPt,
-    bottom - offsetPt,
-    left - offsetPt,
-    bottom - offsetPt
-  );
-  pushLine(
-    left - offsetPt,
-    bottom - offsetPt - cutLenPt,
-    left - offsetPt,
-    bottom - offsetPt
-  );
-  // TL
-  pushLine(
-    left - offsetPt - cutLenPt,
-    top + offsetPt,
-    left - offsetPt,
-    top + offsetPt
-  );
-  pushLine(
-    left - offsetPt,
-    top + offsetPt,
-    left - offsetPt,
-    top + offsetPt + cutLenPt
-  );
-  // TR
-  pushLine(
-    right + offsetPt,
-    top + offsetPt,
-    right + offsetPt + cutLenPt,
-    top + offsetPt
-  );
-  pushLine(
-    right + offsetPt,
-    top + offsetPt,
-    right + offsetPt,
-    top + offsetPt + cutLenPt
-  );
-  // BR
-  pushLine(
-    right + offsetPt,
-    bottom - offsetPt,
-    right + offsetPt + cutLenPt,
-    bottom - offsetPt
-  );
-  pushLine(
-    right + offsetPt,
-    bottom - offsetPt - cutLenPt,
-    right + offsetPt,
-    bottom - offsetPt
-  );
-
-  // Vertical boundaries
-  for (let i = 1; i < xs.length - 1; i += 1) {
+  // Top & bottom: draw I-marks at EVERY vertical cut line (all xs)
+  for (let i = 0; i < xs.length; i += 1) {
     const x = xs[i];
-    pushLine(x, bottom - offsetPt - cutLenPt, x, bottom - offsetPt);
-    pushLine(x, top + offsetPt, x, top + offsetPt + cutLenPt);
-  }
-  // Horizontal boundaries
-  for (let j = 1; j < ys.length - 1; j += 1) {
-    const y = ys[j];
-    pushLine(left - offsetPt - cutLenPt, y, left - offsetPt, y);
-    pushLine(right + offsetPt, y, right + offsetPt + cutLenPt, y);
+    // bottom tick (points outward)
+    draw(x, bottom - offB - cutLenPt, x, bottom - offB);
+    // top tick
+    draw(x, top + offT, x, top + offT + cutLenPt);
   }
 
-  for (let i = 0; i < lines.length; i += 2) {
-    const [x1, y1] = lines[i];
-    const [x2, y2] = lines[i + 1];
-    page.pushOperators(moveTo(x1, y1), lineTo(x2, y2), stroke());
+  // Left & right: draw I-marks at EVERY horizontal cut line (all ys)
+  for (let j = 0; j < ys.length; j += 1) {
+    const y = ys[j];
+    // left tick
+    draw(left - offL - cutLenPt, y, left - offL, y);
+    // right tick
+    draw(right + offR, y, right + offR + cutLenPt, y);
   }
 
   page.pushOperators(popGraphicsState());
@@ -245,8 +209,7 @@ export async function exportNUp(plan: NUpPlan): Promise<Uint8Array> {
   }
 
   const doc = await PDFDocument.create();
-  if (meta?.title) doc.setTitle(meta.title);
-  if (meta?.author) doc.setAuthor(meta.author);
+  if (meta?.customerName) doc.setTitle(meta.customerName);
 
   const pageWidthPt = mmToPt(paper.widthMm);
   const pageHeightPt = mmToPt(paper.heightMm);
@@ -273,8 +236,7 @@ export async function exportNUp(plan: NUpPlan): Promise<Uint8Array> {
 
   const gridTotalW = outerW * layout.cols;
   const gridStartX = xOrigin + (usableW - gridTotalW) / 2;
-
-  const gridStartY = yOrigin + mmToPt(marks.cutLenMm);
+  const gridStartY = yOrigin + mmToPt(marks.cutLenMm) + bleedPt.bottom; // keep bottom clearance
 
   let cell = 0;
   for (let r = 0; r < layout.rows; r += 1) {
@@ -282,7 +244,7 @@ export async function exportNUp(plan: NUpPlan): Promise<Uint8Array> {
       const slotData = slots[cell];
 
       const xTrim = gridStartX + c * outerW + bleedPt.left;
-      const yTrim = gridStartY + r * outerH; // ⬅ trim bottom aligned with margin+cutLen
+      const yTrim = gridStartY + r * outerH;
 
       const rect = ptRectFromTrimAndBleed(
         xTrim,
@@ -300,7 +262,13 @@ export async function exportNUp(plan: NUpPlan): Promise<Uint8Array> {
           page,
           slotData,
           rect.outer,
-          clampRotation(slotData.rotateDeg ?? slot.defaultRotateDeg)
+          clampRotation(
+            (slotData.rotateDeg ?? slot.defaultRotateDeg ?? 0) as
+              | 0
+              | 90
+              | 180
+              | 270
+          )
         );
       }
 
@@ -308,10 +276,18 @@ export async function exportNUp(plan: NUpPlan): Promise<Uint8Array> {
     }
   }
 
-  if (color.keepCMYK && color.markColor === "K100") {
-    drawCutMarksFromTrimRects(page, allTrimRects, marks);
-  } else {
-    drawCutMarksFromTrimRects(page, allTrimRects, marks);
+  // Perimeter marks aligned to ALL cut lines; start at trim + bleed
+  drawCutMarksFromTrimRects(page, allTrimRects, marks, bleedPt);
+
+  const metaText = [meta?.date, meta?.customerName, meta?.description]
+    .filter(Boolean)
+    .join(" — ");
+  if (metaText) {
+    const xText = mmToPt(paper.marginMm.left);
+    const yText = mmToPt(paper.marginMm.bottom);
+    page.pushOperators(pushGraphicsState(), setFillingColor(cmyk(0, 0, 0, 1)));
+    page.drawText(metaText, { x: xText, y: yText, size: 10 });
+    page.pushOperators(popGraphicsState());
   }
 
   return doc.save({ useObjectStreams: true, addDefaultPage: false });
@@ -322,19 +298,33 @@ async function placePdfPageNoScale(
   doc: PDFDocument,
   page: PDFPage,
   slot: SlotInput,
-  outer: PtRect,
+  outer: { x: number; y: number; width: number; height: number },
   rotateDeg: 0 | 90 | 180 | 270
 ): Promise<void> {
   const [embedded] = await doc.embedPdf(slot.pdfBytes, [slot.pageIndex]);
+  if (!embedded) throw new Error(`Invalid pageIndex: ${slot.pageIndex}`);
 
   const srcW = embedded.width;
   const srcH = embedded.height;
 
-  const drawsW = rotateDeg % 180 === 0 ? srcW : srcH;
-  const drawsH = rotateDeg % 180 === 0 ? srcH : srcW;
+  // draw page centered in the OUTER rect, then rotate around center
+  const cx = outer.x + outer.width / 2;
+  const cy = outer.y + outer.height / 2;
 
-  const xDraw = outer.x + (outer.width - drawsW) / 2;
-  const yDraw = outer.y + (outer.height - drawsH) / 2;
+  // We draw with origin at center, so we offset by half of the *unrotated* source size.
+  // Rotation happens via CTM, so no need to pre-swap W/H for 90/270.
+  page.pushOperators(
+    pushGraphicsState(),
+    translate(cx, cy),
+    rotateRadians((Math.PI * rotateDeg) / 180)
+  );
 
-  page.drawPage(embedded, { x: xDraw, y: yDraw, rotate: degrees(rotateDeg) });
+  // draw at (-srcW/2, -srcH/2) with no extra rotate
+  page.drawPage(embedded, {
+    x: -srcW / 2,
+    y: -srcH / 2,
+    // no rotate here; rotation already applied by CTM above
+  });
+
+  page.pushOperators(popGraphicsState());
 }

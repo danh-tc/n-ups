@@ -100,11 +100,15 @@ export async function mapStoreToNUpPlan(
     marks: {
       cutLenMm: state.paper.cutMarkLengthMm ?? 3,
       cutStrokePt: 0.5,
-      offsetMm: margin.top ?? 0,
+      offsetMm: 0,
     },
     color: { keepCMYK: true, markColor: "K100" },
     slots,
-    meta: { title: "", author: "N-UPS Tool" }, // simplified for now
+    meta: {
+      date: state.meta.date,
+      customerName: state.meta.customerName,
+      description: state.meta.description
+    }, 
   };
 
   return plan;

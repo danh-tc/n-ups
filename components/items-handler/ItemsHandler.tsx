@@ -314,7 +314,6 @@ export default function ItemsHandler(): JSX.Element | null {
     return runWithLoading(async () => {
       // Build plans from selections
       const frontPlan = await mapStoreToNUpPlan("front");
-      console.log(frontPlan)
       const backPlan = duplex ? await mapStoreToNUpPlan("back") : null;
 
       // Nothing to export?

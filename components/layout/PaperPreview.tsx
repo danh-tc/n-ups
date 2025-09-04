@@ -186,12 +186,18 @@ export const PaperPreview: React.FC<Props> = ({
                       width: insetW,
                       height: insetH,
                     };
+                const noImgMargins =
+                  (image.margin?.top ?? 0) === 0 &&
+                  (image.margin?.right ?? 0) === 0 &&
+                  (image.margin?.bottom ?? 0) === 0 &&
+                  (image.margin?.left ?? 0) === 0;
 
                 return (
                   <ImageCell
                     key={`${r}-${c}`}
                     width={cellWidth}
                     height={cellHeight}
+                    noMargins= {noImgMargins}
                   >
                     <div
                       className={`rethink-image-slot ${

@@ -21,8 +21,7 @@ export const SummaryTable: React.FC = () => {
     () => computeLayout(paper, image),
     [paper, image]
   );
-
-  const printedArea = useMemo(() => printedW * printedH, [printedW, printedH]);
+  const printedArea = useMemo(() => tagW * tagH * items, [tagW, tagH, items]);
   const paperArea = clamp0(paper.width * paper.height);
   const scrapArea = Math.max(0, paperArea - printedArea);
   const scrapPct = paperArea > 0 ? (scrapArea / paperArea) * 100 : 0;
@@ -71,7 +70,7 @@ export const SummaryTable: React.FC = () => {
         <div className="rethink-summary__row rethink-summary__row--wrap">
           <dt>Printed area</dt>
           <dd>
-            {formatMm(printedW)} × {formatMm(printedH)} ={" "}
+            {formatMm(tagW)} × {formatMm(tagH)} × {items} ={" "}
             <b>{formatMm2(printedArea)}</b>
           </dd>
         </div>

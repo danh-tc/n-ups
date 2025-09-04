@@ -194,21 +194,6 @@ export const PaperSettingsForm: React.FC<Props> = ({ value, onChange }) => {
           />
         </label>
         <label>
-          Margin Right (mm)
-          <input
-            className="rethink-input"
-            type="number"
-            min={0}
-            value={value.margin.right}
-            onChange={(e) =>
-              onChange({
-                ...value,
-                margin: { ...value.margin, right: safeNumber(e.target.value) },
-              })
-            }
-          />
-        </label>
-        <label>
           Margin Bottom (mm)
           <input
             className="rethink-input"
@@ -238,8 +223,22 @@ export const PaperSettingsForm: React.FC<Props> = ({ value, onChange }) => {
             }
           />
         </label>
+        <label>
+          Margin Right (mm)
+          <input
+            className="rethink-input"
+            type="number"
+            min={0}
+            value={value.margin.right}
+            onChange={(e) =>
+              onChange({
+                ...value,
+                margin: { ...value.margin, right: safeNumber(e.target.value) },
+              })
+            }
+          />
+        </label>
       </div>
-
       <div className="rethink-paper-settings-form__marks">
         <label>
           Crop Marks Length (mm)

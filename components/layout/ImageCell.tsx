@@ -6,9 +6,10 @@ interface Props {
   width: number; 
   height: number; 
   children?: React.ReactNode;
+  noMargins?: boolean
 }
 
-export const ImageCell: React.FC<Props> = ({ width, height, children }) => (
+export const ImageCell: React.FC<Props> = ({ width, height, noMargins, children }) => (
   <div
     className="image-cell"
     style={{
@@ -16,6 +17,7 @@ export const ImageCell: React.FC<Props> = ({ width, height, children }) => (
       height,
       position: "relative",
       boxSizing: "border-box",
+      outline: noMargins ? "1px solid blue" : undefined,
     }}
   >
     {children}

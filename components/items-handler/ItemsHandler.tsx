@@ -13,7 +13,6 @@ import { computeLayout } from "@/lib/imposition";
 import { useImpositionStore } from "@/store/useImpositionStore";
 import { useHydrated } from "@/hooks/useImpositionHydrated";
 import type { UploadedImage } from "@/types/types";
-import { exportImpositionPdf } from "@/lib/exportImpositionPdf";
 import ExportQueueDrawer from "./ExportQueueDrawer";
 import { useExportQueueStore } from "@/store/useExportQueueStore";
 import FullScreenBrandedLoader from "../layout/FullScreenLoader";
@@ -47,7 +46,6 @@ export default function ItemsHandler(): JSX.Element | null {
   const paper = useImpositionStore((s) => s.paper);
   const image = useImpositionStore((s) => s.image);
   const meta = useImpositionStore((s) => s.meta);
-  const displayMeta = useImpositionStore((s) => s.displayMeta);
   const duplex = useImpositionStore((s) => s.paper.duplex ?? false);
 
   // Slots from store
@@ -88,7 +86,7 @@ export default function ItemsHandler(): JSX.Element | null {
   const [isQueueOpen, setIsQueueOpen] = useState(false);
 
   useEffect(() => {
-    hydrateQueue();
+    void hydrateQueue();
   }, [hydrateQueue]);
 
   // ===== Create UploadedImage from a PdfPageImage =====
@@ -135,13 +133,13 @@ export default function ItemsHandler(): JSX.Element | null {
         setFrontSelection({
           fileId: page.sourceFileId,
           pageNumber: page.pageNumber,
-        }); // new
+        });
       } else {
         setBackSlots(filled);
         setBackSelection({
           fileId: page.sourceFileId,
           pageNumber: page.pageNumber,
-        }); // new
+        });
       }
     },
     [
@@ -260,14 +258,14 @@ export default function ItemsHandler(): JSX.Element | null {
     setFrontSlots(
       Array<UploadedImage | undefined>(slotsPerSheet).fill(undefined)
     );
-    setFrontSelection(null); // new
+    setFrontSelection(null);
   }, [setFrontSlots, slotsPerSheet, setFrontSelection]);
 
   const clearBack = useCallback(() => {
     setBackSlots(
       Array<UploadedImage | undefined>(slotsPerSheet).fill(undefined)
     );
-    setBackSelection(null); // new
+    setBackSelection(null);
   }, [setBackSlots, slotsPerSheet, setBackSelection]);
 
   const clearBoth = useCallback(() => {
@@ -277,8 +275,8 @@ export default function ItemsHandler(): JSX.Element | null {
     setBackSlots(
       Array<UploadedImage | undefined>(slotsPerSheet).fill(undefined)
     );
-    setFrontSelection(null); // new
-    setBackSelection(null); // new
+    setFrontSelection(null);
+    setBackSelection(null);
   }, [
     setFrontSlots,
     setBackSlots,
@@ -287,78 +285,57 @@ export default function ItemsHandler(): JSX.Element | null {
     setBackSelection,
   ]);
 
-  // ===== Export =====
-  const buildCurrentPdfBytes = async () => {
-    const sheets: (UploadedImage | undefined)[][] = [];
-    sheets.push(frontSlots);
-    if (duplex && hasAnyBack) sheets.push(backSlots);
+  // ===== Export (shared N-Up builder used by both actions) =====
+  const buildCurrentNUpBytes = useCallback(async (): Promise<Uint8Array | null> => {
+    const frontPlan = await mapStoreToNUpPlan("front");
+    const backPlan = duplex ? await mapStoreToNUpPlan("back") : null;
+    if (!frontPlan && !backPlan) return null;
 
-    const pdfBytes = await exportImpositionPdf({
-      paper,
-      image,
-      sheets,
-      layout: { rows: layout.rows, cols: layout.cols },
-      customerName: meta.customerName,
-      description: meta.description,
-      displayMeta,
-      date: meta.date,
-      cutMarkLengthMm: 6,
-      cutMarkThicknessPt: 0.7,
-      cutMarkColor: { r: 0, g: 0, b: 0 },
-    });
-    return pdfBytes;
-  };
+    const parts: Uint8Array[] = [];
+    if (frontPlan) parts.push(await exportNUp(frontPlan));
+    if (backPlan) parts.push(await exportNUp(backPlan));
 
-  const handleExportPdf = () => {
+    if (parts.length === 1) return parts[0];
+
+    const { PDFDocument } = await import("pdf-lib");
+    const merged = await PDFDocument.create();
+    for (const bytes of parts) {
+      const doc = await PDFDocument.load(bytes);
+      const copied = await merged.copyPages(doc, doc.getPageIndices());
+      copied.forEach((p) => merged.addPage(p));
+    }
+    return merged.save();
+  }, [duplex]);
+
+  const handleExportPdf = (): void => {
     if (!hasAnyImage) return;
-    return runWithLoading(async () => {
-      // Build plans from selections
-      const frontPlan = await mapStoreToNUpPlan("front");
-      const backPlan = duplex ? await mapStoreToNUpPlan("back") : null;
-
-      // Nothing to export?
-      if (!frontPlan && !backPlan) return;
-
-      // Export each side to PDF bytes
-      const parts: Uint8Array[] = [];
-      if (frontPlan) parts.push(await exportNUp(frontPlan));
-      if (backPlan) parts.push(await exportNUp(backPlan));
-
-      // If two parts, merge into one PDF with 2 pages; else keep single part
-      let outBytes = parts[0];
-      if (parts.length === 2) {
-        const { PDFDocument } = await import("pdf-lib");
-        const merged = await PDFDocument.create();
-        for (const bytes of parts) {
-          const doc = await PDFDocument.load(bytes);
-          const copied = await merged.copyPages(doc, doc.getPageIndices());
-          copied.forEach((p) => merged.addPage(p));
-        }
-        outBytes = await merged.save();
-      }
-
-      // Preview in new tab
+    void runWithLoading(async () => {
+      const outBytes = await buildCurrentNUpBytes();
+      if (!outBytes) return;
       const blob = new Blob([outBytes], { type: "application/pdf" });
       const url = URL.createObjectURL(blob);
       window.open(url, "_blank");
     });
   };
 
-  const handleAddToExportList = () =>
-    runWithLoading(async () => {
-      if (!hasAnyFront) return;
-      const pdfBytes = await buildCurrentPdfBytes();
+  const handleAddToExportList = (): void =>
+    void runWithLoading(async () => {
+      if (!hasAnyFront) return; // keep current UX gate
+      const outBytes = await buildCurrentNUpBytes();
+      if (!outBytes) return;
+
       const { PDFDocument } = await import("pdf-lib");
-      const doc = await PDFDocument.load(pdfBytes);
+      const doc = await PDFDocument.load(outBytes);
       const pageCount = doc.getPageCount();
+
       const name = meta.customerName?.trim() || `Job ${queueItems.length + 1}`;
-      const blob = new Blob([pdfBytes], { type: "application/pdf" });
+      const blob = new Blob([outBytes], { type: "application/pdf" });
       await addToQueue(name, pageCount, blob);
       setIsQueueOpen(true);
     });
 
-  const handleExportAll = () =>
-    runWithLoading(async () => {
+  const handleExportAll = (): void =>
+    void runWithLoading(async () => {
       const merged = await exportAllQueued();
       if (!merged) return;
       const blob = new Blob([merged], { type: "application/pdf" });

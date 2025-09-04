@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import "./header.scss";
 
 const NAV = [
-  { label: "Home", href: "/" },
+  // { label: "Home", href: "/" },
   { label: "Configuration", href: "/configuration" },
   { label: "Imposition", href: "/imposition" },
 ];
@@ -29,7 +29,7 @@ export function Header() {
       <div className="rethink-header__inner rethink-container">
         {/* Brand */}
         <Link href="/" className="rethink-header__brand">
-          Ready-2-Print
+          N-Ups
         </Link>
 
         {/* Nav (center) */}

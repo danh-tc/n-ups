@@ -9,7 +9,7 @@ export function Footer() {
       <div className="rethink-footer__inner rethink-container">
         {/* Brand / tagline */}
         <div className="rethink-footer__col rethink-footer__brand">
-          <div className="rethink-footer__logo">Ready-2-Print</div>
+          <div className="rethink-footer__logo">N-Ups</div>
           <p className="rethink-footer__tagline">
             Precision imposition and press-ready PDF export.
           </p>
@@ -55,7 +55,7 @@ export function Footer() {
       <div className="rethink-footer__bar">
         <div className="rethink-container rethink-footer__bar-inner">
           <span className="rethink-footer__copy">
-            © {new Date().getFullYear()} Ready-2-Print
+            © {new Date().getFullYear()} N-Ups
           </span>
           <span className="rethink-footer__note">
             Built for accurate, fast printing.

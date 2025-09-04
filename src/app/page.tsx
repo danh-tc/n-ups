@@ -1,11 +1,4 @@
-import { Hero } from "@/components/layout/Hero";
-import { BenefitGrid } from "@/components/layout/BenefitGrid";
-
+import { redirect } from "next/navigation";
 export default function Home() {
-  return (
-    <>
-      <Hero />
-      <BenefitGrid />
-    </>
-  );
+  redirect("/configuration");
 }

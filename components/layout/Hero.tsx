@@ -12,7 +12,7 @@ export function Hero() {
     <section className="rethink-hero">
       <div className="rethink-hero__inner rethink-container">
         <div className="rethink-hero__copy">
-          <h1 className="rethink-hero__title">Ready-2-Print Imposition</h1>
+          <h1 className="rethink-hero__title">N-Ups Imposition</h1>
           <p className="rethink-hero__subtitle">
             From images to press-ready PDFs in minutes. Auto-fit, crop, and
             paginate to any paper size with mm-level precision.

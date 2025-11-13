@@ -17,13 +17,15 @@
     "pdfjs-dist": "^5.4.54",
     "react": "19.1.0",
     "react-dom": "19.1.0",
-    "zustand": "^5.0.6"
+    "sortablejs": "^1.15.6",
+    "zustand": "^5.0.8"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/sortablejs": "^1.15.9",
     "eslint": "^9",
     "eslint-config-next": "15.4.1",
     "sass": "^1.89.2",

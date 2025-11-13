@@ -1,0 +1,16 @@
+.rethink-combine-btn {
+  background: #ff7eb9;
+  padding: 0.7rem 1.3rem;
+  border-radius: 8px;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+  box-shadow: 0 3px 8px rgba(255, 126, 185, 0.4);
+  transition: 0.25s;
+
+  &:hover {
+    background: #ff9fbd;
+    transform: translateY(-1px);
+  }
+}

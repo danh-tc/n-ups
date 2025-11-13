@@ -1,0 +1,49 @@
+.rethink-loading {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+
+  background: rgba(255, 240, 246, 0.55);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+
+  animation: rethink-fade-in 0.35s ease both;
+
+  &__spinner {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    border: 5px solid #ffd6e7;
+    border-top-color: #ff69b4;
+    border-right-color: #ff8fb3;
+    animation: rethink-spin 0.9s linear infinite;
+    margin-bottom: 1rem;
+  }
+
+  &__message {
+    color: #ff69b4;
+    font-size: 1.25rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+  }
+}
+
+/* Animations */
+@keyframes rethink-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes rethink-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

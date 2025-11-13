@@ -1,0 +1,31 @@
+.rethink-sort-controls {
+  display: flex;
+  justify-content: center;
+  margin: 1.2rem 0;
+
+  &__btn {
+    background-color: #ff7eb9;
+    border: none;
+    color: #fff;
+    font-weight: 600;
+    padding: 0.6rem 1.2rem;
+    border-radius: 8px;
+    cursor: pointer;
+    box-shadow: 0 3px 8px rgba(255, 126, 185, 0.4);
+    transition: all 0.25s ease;
+
+    &:hover {
+      background-color: #ff9fbd;
+      transform: translateY(-1px);
+    }
+
+    &.is-disabled,
+    &:disabled {
+      background-color: #ffd6e7;
+      color: #fff5f9;
+      cursor: not-allowed;
+      box-shadow: none;
+      transform: none;
+    }
+  }
+}

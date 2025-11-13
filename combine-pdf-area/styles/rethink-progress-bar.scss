@@ -1,0 +1,14 @@
+.rethink-progress-bar {
+  width: 12rem;
+  height: 0.5rem;
+  background: #ffeaf3;
+  border-radius: 6px;
+  overflow: hidden;
+  margin-top: 0.4rem;
+
+  &__fill {
+    background: linear-gradient(90deg, #ff7eb9, #ffaec9);
+    height: 100%;
+    transition: width 0.3s ease;
+  }
+}

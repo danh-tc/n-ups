@@ -1,0 +1,32 @@
+body {
+  font-family: "Inter", sans-serif;
+  color: #4a4a4a;
+}
+
+.rethink-combine {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 2rem;
+  min-height: calc(100vh - 73px - 314px);
+  background-color: #fff5f9;
+
+  &__title {
+    text-align: center;
+    font-size: 2rem;
+    font-weight: 700;
+    color: #ff69b4;
+    margin-bottom: 1.5rem;
+  }
+
+  &__empty {
+    text-align: center;
+    color: #aaa;
+    margin-top: 2rem;
+  }
+}
+
+.rethink-file-item {
+  background-color: #ffffff;
+  border: 1px solid #ffd6e7;
+  box-shadow: 0 2px 6px rgba(255, 182, 193, 0.3);
+}

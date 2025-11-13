@@ -9,6 +9,7 @@ const NAV = [
   // { label: "Home", href: "/" },
   { label: "Configuration", href: "/configuration" },
   { label: "Imposition", href: "/imposition" },
+  { label: "Combine", href: "/combine" },
 ];
 
 export function Header() {

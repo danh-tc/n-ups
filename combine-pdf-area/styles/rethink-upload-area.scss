@@ -1,0 +1,46 @@
+.rethink-upload-area {
+  border: 2px dashed #ffb6c1; // light pink border
+  background-color: #fff;
+  border-radius: 14px;
+  padding: 2.5rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 3px 8px rgba(255, 182, 193, 0.25);
+
+  &__input {
+    display: none;
+  }
+
+  &__text {
+    color: #666;
+    font-size: 1rem;
+    font-weight: 500;
+    letter-spacing: 0.3px;
+  }
+
+  &__highlight {
+    color: #ff69b4; 
+    font-weight: 600;
+    text-decoration: underline;
+  }
+
+  &:hover {
+    background-color: #fff5f8;
+    border-color: #ff8fb3;
+    box-shadow: 0 4px 10px rgba(255, 182, 193, 0.35);
+  }
+
+  &.is-dragging {
+    background-color: #ffe6ef;
+    border-color: #ff69b4;
+    box-shadow: 0 0 0 4px rgba(255, 182, 193, 0.25);
+  }
+
+  @media (max-width: 600px) {
+    padding: 1.5rem;
+    &__text {
+      font-size: 0.95rem;
+    }
+  }
+}

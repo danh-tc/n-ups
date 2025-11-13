@@ -1,0 +1,176 @@
+/* 🌸 Pinky-White Modal Dialog */
+.rethink-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  /* Backdrop */
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: rgba(255, 182, 193, 0.25); /* light pink + white haze */
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    animation: rethink-dialog-fade-in 0.3s ease;
+  }
+
+  /* Dialog Box */
+  &__box {
+    position: relative;
+    z-index: 1000;
+    width: 92%;
+    max-width: 420px;
+    padding: 1.8rem 2rem;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 182, 193, 0.35);
+    box-shadow: 0 10px 40px rgba(255, 126, 185, 0.25);
+    animation: rethink-dialog-scale-in 0.3s ease forwards;
+  }
+
+  /* Title */
+  &__title {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #ff69b4;
+    text-align: center;
+    margin-bottom: 1rem;
+    letter-spacing: 0.5px;
+  }
+
+  /* Label */
+  &__label {
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    display: block;
+    color: #c75a8a;
+    font-size: 0.95rem;
+  }
+
+  /* Options block */
+  &__options {
+    margin-top: 0.8rem;
+    margin-bottom: 1.4rem;
+    display: grid;
+    gap: 0.8rem;
+    font-size: 0.95rem;
+    color: #6d3d53;
+
+    input[type="radio"] {
+      margin-right: 6px;
+      accent-color: #ff7eb9;
+    }
+  }
+
+  /* Custom input */
+  &__input {
+    margin-top: 0.5rem;
+    padding: 0.6rem 0.8rem;
+    border-radius: 8px;
+    border: 1px solid #ffd6e7;
+    font-size: 0.96rem;
+    width: 100%;
+    background: #fff9fb;
+
+    &:focus {
+      outline: none;
+      border-color: #ff69b4;
+      box-shadow: 0 0 0 3px rgba(255, 126, 185, 0.2);
+    }
+  }
+
+  /* Actions */
+  &__actions {
+    margin-top: 1.6rem;
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.8rem;
+  }
+
+  /* Buttons */
+  &__btn--cancel {
+    padding: 0.55rem 1.1rem;
+    background: #ffe6ef;
+    border: 1px solid #ffc3d7;
+    border-radius: 8px;
+    color: #c75a8a;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: all 0.25s ease;
+
+    &:hover {
+      background: #ffd6e7;
+    }
+  }
+
+  &__btn--confirm {
+    padding: 0.55rem 1.3rem;
+    background: #ff7eb9;
+    border: none;
+    border-radius: 8px;
+    color: #fff;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    box-shadow: 0 3px 8px rgba(255, 126, 185, 0.4);
+
+    &:hover {
+      background: #ff9fbd;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 10px rgba(255, 126, 185, 0.45);
+    }
+
+    &:disabled {
+      background: #ffd6e7;
+      color: #fff5f9;
+      cursor: not-allowed;
+      box-shadow: none;
+      transform: none;
+    }
+  }
+}
+
+/* 🌸 Loading Overlay (front-layer) */
+.rethink-dialog-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 2000;
+  background: rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ff69b4;
+  font-size: 1.3rem;
+  font-weight: 600;
+
+  animation: rethink-dialog-fade-in 0.3s ease;
+}
+
+/* ✨ Animations */
+@keyframes rethink-dialog-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes rethink-dialog-scale-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}

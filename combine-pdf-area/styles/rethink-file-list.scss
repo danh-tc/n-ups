@@ -1,6 +1,25 @@
+.rethink-file-list-wrapper {
+  padding: 1rem;
+  background: #ffe6f2;
+  border-radius: 12px;
+  border: 1px solid #ffb6d9;
+  margin-top: 1rem;
+}
+
+.rethink-file-list__header {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 0.8rem;
+  color: #d63384;
+  padding: 0.5rem 0.75rem;
+  background: #ffd6ea;
+  border-radius: 8px;
+  border: 1px solid #ffc2e6;
+}
+
 .rethink-file-list {
   list-style: none;
-  margin: 1.5rem 0;
+  margin: 1rem 0 0 0;
   padding: 0;
   display: flex;
   flex-direction: column;

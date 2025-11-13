@@ -32,10 +32,16 @@ export default function FileList({ files, onDelete }: Props) {
   }, [files, updateOrder]);
 
   return (
-    <ul className="rethink-file-list" ref={listRef}>
-      {files.map((file) => (
-        <FileItem key={file.id} file={file} onDelete={onDelete} />
-      ))}
-    </ul>
+    <div className="rethink-file-list-wrapper">
+      <div className="rethink-file-list__header">
+        📄 Loaded files: <strong>{files.length}</strong>
+      </div>
+
+      <ul className="rethink-file-list" ref={listRef}>
+        {files.map((file, index) => (
+          <FileItem key={file.id} file={file} onDelete={onDelete} />
+        ))}
+      </ul>
+    </div>
   );
 }

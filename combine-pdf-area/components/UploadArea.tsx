@@ -10,15 +10,17 @@ export default function UploadArea() {
   const { addFile, files } = usePdfStore();
   const [isDragging, setIsDragging] = useState(false);
 
-  const handleFiles = (fileList: FileList | null) => {
+  const handleFiles = async (fileList: FileList | null) => {
     if (!fileList) return;
+
     const pdfs = Array.from(fileList).filter(
       (f) => f.type === "application/pdf"
     );
 
-    pdfs.forEach(async (file, i) => {
-      const id = `${Date.now()}-${i}`;
-      const order = files.length + i + 1;
+    pdfs.forEach((file, index) => {
+      const id = crypto.randomUUID();
+      const order = files.length + index + 1;
+
       const record: PdfFileRecord = {
         id,
         name: file.name,
@@ -28,10 +30,12 @@ export default function UploadArea() {
         order,
       };
 
-      const reader = new FileReader();
-      reader.onloadend = async () => await addFile(record);
-      reader.readAsArrayBuffer(file);
+      addFile(record);
     });
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
   };
 
   const onDrop = (e: DragEvent<HTMLDivElement>) => {
